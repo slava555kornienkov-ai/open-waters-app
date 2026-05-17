@@ -9,24 +9,14 @@ export function useAuth() {
 
   const utils = trpc.useUtils();
 
-  // Try local auth first (phone/password)
+  // Telegram auth — check session via backend
   const {
-    data: localUser,
-    isLoading: localLoading,
-  } = trpc.localAuth.me.useQuery(undefined, {
-    staleTime: 1000 * 60 * 5,
-    retry: false,
-    enabled: !!localStorage.getItem("auth_token"),
-  });
-
-  // Fallback to OAuth (Kimi)
-  const {
-    data: oauthUser,
-    isLoading: oauthLoading,
+    data: telegramUser,
+    isLoading: telegramLoading,
   } = trpc.auth.me.useQuery(undefined, {
     staleTime: 1000 * 60 * 5,
     retry: false,
-    enabled: !localUser && !localStorage.getItem("auth_token"),
+    enabled: !!localStorage.getItem("auth_token"),
   });
 
   const logoutMutation = trpc.auth.logout.useMutation({
@@ -42,10 +32,10 @@ export function useAuth() {
     window.location.reload();
   }, [logoutMutation, logoutStore]);
 
-  // Prefer local auth, fallback to OAuth, then store
-  const isAuthenticated = !!localUser || !!oauthUser || storeAuth;
-  const isLoading = localLoading || oauthLoading;
-  const user = localUser || oauthUser || storeUser;
+  // Prefer Telegram user, fallback to store
+  const isAuthenticated = !!telegramUser || storeAuth;
+  const isLoading = telegramLoading && !!localStorage.getItem("auth_token");
+  const user = telegramUser || storeUser;
 
   return useMemo(
     () => ({

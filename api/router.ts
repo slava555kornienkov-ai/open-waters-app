@@ -1,5 +1,5 @@
 import { authRouter } from "./auth-router";
-import { localAuthRouter } from "./local-auth-router";
+import { telegramAuthRouter } from "./telegram-auth-router";
 import { profileRouter } from "./profile-router";
 import { bookingRouter } from "./booking-router";
 import { wheelRouter } from "./wheel-router";
@@ -11,7 +11,7 @@ import { createRouter, publicQuery } from "./middleware";
 export const appRouter = createRouter({
   ping: publicQuery.query(() => ({ ok: true, ts: Date.now() })),
   auth: authRouter,
-  localAuth: localAuthRouter,
+  telegramAuth: telegramAuthRouter,
   profile: profileRouter,
   booking: bookingRouter,
   wheel: wheelRouter,
