@@ -14,10 +14,10 @@ import {
 // ─── Users ───────────────────────────────────────────────
 export const users = mysqlTable("users", {
   id: serial("id").primaryKey(),
-  unionId: varchar("unionId", { length: 255 }).notNull().unique(),
+  unionId: varchar("unionId", { length: 255 }).unique(),
   telegramId: varchar("telegramId", { length: 100 }),
   name: varchar("name", { length: 255 }),
-  phone: varchar("phone", { length: 20 }),
+  phone: varchar("phone", { length: 20 }).unique(),
   email: varchar("email", { length: 320 }),
   avatar: text("avatar"),
   passwordHash: varchar("passwordHash", { length: 255 }),

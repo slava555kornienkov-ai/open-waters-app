@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { User, Phone, Lock, LogIn, Eye, EyeOff } from "lucide-react";
+import { User, Phone, Lock, LogIn, Eye, EyeOff, Globe } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import { trpc } from "@/providers/trpc";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -12,30 +13,79 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverError, setServerError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phone.trim() || !password.trim()) { showToast({ message: "Заполните все поля", type: "error" }); return; }
-    if (mode === "register" && !name.trim()) { showToast({ message: "Введите имя", type: "error" }); return; }
-    setIsSubmitting(true);
-    setTimeout(() => {
+  // tRPC mutations
+  const registerMutation = trpc.localAuth.register.useMutation({
+    onSuccess: (data) => {
       setIsSubmitting(false);
-      // Save user to store
-      const userName = mode === "register" ? name : phone;
-      const referralCode = `OW-${userName.toUpperCase().replace(/\s/g, "-")}-${Math.floor(Math.random() * 90 + 10)}`;
+      if (data.token) {
+        localStorage.setItem("auth_token", data.token);
+      }
       login({
-        name: userName,
-        phone: phone,
-        bonusBalance: mode === "register" ? 300 : 1250,
-        visitsCount: mode === "register" ? 0 : 8,
-        totalSpent: mode === "register" ? 0 : 15600,
-        referralCode,
+        name: data.name || name,
+        phone: data.phone || phone,
+        bonusBalance: 300,
+        visitsCount: 0,
+        totalSpent: 0,
+        referralCode: `OW-${(data.name || name).toUpperCase().replace(/\s/g, "-")}-${Math.floor(Math.random() * 90 + 10)}`,
         invitedCount: 0,
         earnedFromReferrals: 0,
       });
-      showToast({ message: mode === "login" ? "Добро пожаловать!" : "Регистрация успешна! +300 бонусов", type: "success" });
+      showToast({ message: "Регистрация успешна! +300 бонусов", type: "success" });
       navigate("/booking");
-    }, 800);
+    },
+    onError: (err) => {
+      setIsSubmitting(false);
+      setServerError(err.message || "Ошибка регистрации");
+    },
+  });
+
+  const loginMutation = trpc.localAuth.login.useMutation({
+    onSuccess: (data) => {
+      setIsSubmitting(false);
+      if (data.token) {
+        localStorage.setItem("auth_token", data.token);
+      }
+      login({
+        name: data.name || phone,
+        phone: data.phone || phone,
+        bonusBalance: data.bonusBalance || 0,
+        visitsCount: data.visitsCount || 0,
+        totalSpent: data.totalSpent || 0,
+        referralCode: data.referralCode || "OW-REF-00",
+        invitedCount: 0,
+        earnedFromReferrals: 0,
+      });
+      showToast({ message: "Добро пожаловать!", type: "success" });
+      navigate("/booking");
+    },
+    onError: (err) => {
+      setIsSubmitting(false);
+      setServerError(err.message || "Неверный логин или пароль");
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setServerError("");
+
+    if (!phone.trim() || !password.trim()) {
+      showToast({ message: "Заполните все поля", type: "error" });
+      return;
+    }
+    if (mode === "register" && !name.trim()) {
+      showToast({ message: "Введите имя", type: "error" });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    if (mode === "register") {
+      registerMutation.mutate({ name, phone, password });
+    } else {
+      loginMutation.mutate({ phone, password });
+    }
   };
 
   const formatPhone = (value: string) => {
@@ -49,7 +99,6 @@ export default function Login() {
   };
 
   const handleGuest = () => {
-    // Guest login with empty name
     login({
       name: "Гость",
       phone: "",
@@ -90,13 +139,20 @@ export default function Login() {
           {/* Tabs */}
           <div className="flex gap-1 p-1 rounded-xl surface-solid mb-6">
             {(["login","register"] as const).map((tab) => (
-              <button key={tab} onClick={() => setMode(tab)}
+              <button key={tab} onClick={() => { setMode(tab); setServerError(""); }}
                 className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all"
                 style={{ background: mode === tab ? "white" : "transparent", color: mode === tab ? "var(--teal-600)" : "var(--text-muted)", boxShadow: mode === tab ? "0 2px 8px rgba(0,0,0,0.06)" : "none" }}>
                 {tab === "login" ? "Вход" : "Регистрация"}
               </button>
             ))}
           </div>
+
+          {/* Server Error */}
+          {serverError && (
+            <div className="mb-4 p-3 rounded-xl text-sm text-center" style={{ background: "rgba(239,68,68,0.1)", color: "#EF4444" }}>
+              {serverError}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-3">
             {mode === "register" && (
@@ -132,15 +188,16 @@ export default function Login() {
           </form>
 
           {mode === "login" && (
-            <button onClick={() => showToast({ message: "Ссылка отправлена на ваш номер", type: "success" })}
+            <button onClick={() => showToast({ message: "Функция в разработке", type: "info" })}
               className="w-full mt-3 text-center text-xs transition-opacity hover:opacity-70" style={{ color: "var(--teal-500)" }}>Забыли пароль?</button>
           )}
         </div>
 
         {/* Guest login */}
         <button onClick={handleGuest}
-          className="w-full mt-6 text-center text-sm transition-opacity hover:opacity-70" style={{ color: "var(--text-muted)" }}>
-          Продолжить без авторизации →
+          className="w-full mt-6 flex items-center justify-center gap-2 text-sm transition-opacity hover:opacity-70"
+          style={{ color: "var(--text-muted)" }}>
+          <Globe size={14} /> Продолжить без авторизации →
         </button>
       </div>
     </div>
