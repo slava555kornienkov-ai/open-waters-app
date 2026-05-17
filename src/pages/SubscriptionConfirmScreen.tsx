@@ -1,15 +1,22 @@
-import { useNavigate } from "react-router";
-import { CheckCircle, Copy } from "lucide-react";
+import { useNavigate, useLocation } from "react-router";
+import { CheckCircle, CreditCard, Copy } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { QRCodeSVG } from "qrcode.react";
 import { useState } from "react";
 
-export function BookingConfirmScreen() {
+export function SubscriptionConfirmScreen() {
   const navigate = useNavigate();
-  const { bookingForm, showToast } = useAppStore();
+  const location = useLocation();
+  const { showToast, setActiveSubscription } = useAppStore();
   const [copied, setCopied] = useState(false);
 
+  const sub = (location.state as { sub?: { hours: number; price: number; savings: number } } | null)?.sub;
+  const paymentMethod = useAppStore((s) => s.bookingForm.paymentMethod);
+
   const handlePayment = () => {
+    if (sub) {
+      setActiveSubscription({ hours: 0, totalHours: sub.hours });
+    }
     showToast({ message: "Оплата ожидает подтверждения", type: "success" });
     setTimeout(() => navigate("/booking"), 1500);
   };
@@ -22,16 +29,13 @@ export function BookingConfirmScreen() {
     });
   };
 
-  const total = (() => {
-    const prices = [0, 1700, 2800, 3800, 4700];
-    let base = prices[Math.min(bookingForm.duration, 4)] || 4700;
-    if (bookingForm.duration > 4) base += (bookingForm.duration - 4) * 600;
-    let total = base * bookingForm.boards;
-    if (bookingForm.instructor) total += 2000 * bookingForm.duration;
-    if (bookingForm.rescuers) total += 2500 * bookingForm.duration;
-    total -= bookingForm.bonusesUsed;
-    return Math.max(0, total);
-  })();
+  if (!sub) {
+    return (
+      <div className="min-h-full flex items-center justify-center">
+        <p style={{ color: "var(--text-muted)" }}>Данные абонемента не найдены</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-full pb-4">
@@ -56,36 +60,34 @@ export function BookingConfirmScreen() {
           <CheckCircle size={28} className="text-white" />
         </div>
         <h2 className="text-xl font-bold mt-4 text-center" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>
-          Бронирование создано!
+          Абонемент выбран!
         </h2>
         <p className="text-sm mt-2 text-center" style={{ color: "var(--text-secondary)" }}>
-          {bookingForm.date}, {bookingForm.time} - {String(Number(bookingForm.time.split(":")[0]) + bookingForm.duration).padStart(2, "0")}:00
+          {sub.hours} часов аренды SUP-борда
         </p>
 
         {/* Details */}
         <div className="w-full mt-5 space-y-2">
           {[
-            { label: "Длительность", value: `${bookingForm.duration} часа` },
-            { label: "Досок", value: String(bookingForm.boards) },
-            { label: "Инструктор", value: bookingForm.instructor ? "Да" : "Нет" },
-            { label: "Спасатели", value: bookingForm.rescuers ? "Да" : "Нет" },
-            { label: "Бонусы", value: `-${bookingForm.bonusesUsed.toLocaleString()}` },
+            { label: "Часов", value: String(sub.hours) },
+            { label: "Стоимость", value: `${sub.price.toLocaleString()} ₽` },
+            { label: "Экономия", value: `${sub.savings}%`, color: "#10B981" },
           ].map((row, i) => (
             <div key={i} className="flex justify-between py-2 animate-in fade-in slide-in-from-left-3 duration-300" style={{ animationDelay: `${400 + i * 80}ms` }}>
               <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{row.label}</span>
-              <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{row.value}</span>
+              <span className="text-sm font-medium" style={{ color: (row as Record<string, string>).color || "var(--text-primary)" }}>{row.value}</span>
             </div>
           ))}
           <div className="flex justify-between pt-3 mt-2" style={{ borderTop: "1px solid var(--border)" }}>
-            <span className="text-base font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>Стоимость</span>
-            <span className="text-lg font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--teal-600)" }}>{total.toLocaleString()} ₽</span>
+            <span className="text-base font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>Итого</span>
+            <span className="text-lg font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--teal-600)" }}>{sub.price.toLocaleString()} ₽</span>
           </div>
         </div>
       </div>
 
       {/* Payment — QR or Card Transfer */}
       <div className="mx-4 mt-4 rounded-2xl surface-solid p-5 flex flex-col items-center animate-in fade-in slide-in-from-bottom-5 duration-400" style={{ animationDelay: "300ms" }}>
-        {bookingForm.paymentMethod === "card" ? (
+        {paymentMethod === "card" ? (
           <>
             <p className="text-sm font-medium mb-3 text-center" style={{ color: "var(--text-primary)" }}>
               Перевод на карту
@@ -112,7 +114,7 @@ export function BookingConfirmScreen() {
               Оплатите по QR-коду
             </p>
             <div className="bg-white p-3 rounded-xl shadow-sm">
-              <QRCodeSVG value={`ow-payment-${Date.now()}`} size={140} level="M" />
+              <QRCodeSVG value={`ow-sub-${sub.hours}h-${Date.now()}`} size={140} level="M" />
             </div>
             <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Сканируйте в приложении банка</p>
           </>
@@ -133,7 +135,7 @@ export function BookingConfirmScreen() {
           className="w-full h-12 rounded-xl text-sm font-medium transition-all active:scale-[0.97]"
           style={{ color: "var(--text-secondary)" }}
         >
-          Изменить бронь
+          Отмена
         </button>
       </div>
     </div>

@@ -5,7 +5,7 @@ import { useAppStore } from "@/store/useAppStore";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { showToast } = useAppStore();
+  const { showToast, login } = useAppStore();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -20,7 +20,20 @@ export default function Login() {
     setIsSubmitting(true);
     setTimeout(() => {
       setIsSubmitting(false);
-      showToast({ message: mode === "login" ? "Добро пожаловать!" : "Регистрация успешна!", type: "success" });
+      // Save user to store
+      const userName = mode === "register" ? name : phone;
+      const referralCode = `OW-${userName.toUpperCase().replace(/\s/g, "-")}-${Math.floor(Math.random() * 90 + 10)}`;
+      login({
+        name: userName,
+        phone: phone,
+        bonusBalance: mode === "register" ? 300 : 1250,
+        visitsCount: mode === "register" ? 0 : 8,
+        totalSpent: mode === "register" ? 0 : 15600,
+        referralCode,
+        invitedCount: 0,
+        earnedFromReferrals: 0,
+      });
+      showToast({ message: mode === "login" ? "Добро пожаловать!" : "Регистрация успешна! +300 бонусов", type: "success" });
       navigate("/booking");
     }, 800);
   };
@@ -35,6 +48,24 @@ export default function Login() {
     return formatted;
   };
 
+  const handleGuest = () => {
+    // Guest login with empty name
+    login({
+      name: "Гость",
+      phone: "",
+      bonusBalance: 0,
+      visitsCount: 0,
+      totalSpent: 0,
+      referralCode: "OW-GUEST-00",
+      invitedCount: 0,
+      earnedFromReferrals: 0,
+    });
+    showToast({ message: "Вход без авторизации", type: "info" });
+    navigate("/booking");
+  };
+
+  const baseUrl = import.meta.env.BASE_URL || "/";
+
   return (
     <div className="app-viewport flex flex-col items-center justify-center min-h-screen px-6 relative">
       {/* Background decoration */}
@@ -48,7 +79,7 @@ export default function Login() {
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-24 h-24 rounded-2xl flex items-center justify-center mb-4 overflow-hidden" style={{ background: "linear-gradient(135deg, #06B6D4, #0891B2)", boxShadow: "0 12px 40px rgba(6, 182, 212, 0.35)" }}>
-            <img src="/logo-user.jpg" alt="Open Waters" className="w-16 h-16 object-cover rounded-2xl" />
+            <img src={`${baseUrl}logo-user.jpg`} alt="Open Waters" className="w-16 h-16 object-cover rounded-2xl" />
           </div>
           <h1 className="text-2xl font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>Open Waters</h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>Аренда SUP-бордов</p>
@@ -106,8 +137,8 @@ export default function Login() {
           )}
         </div>
 
-        {/* Skip login */}
-        <button onClick={() => navigate("/booking")}
+        {/* Guest login */}
+        <button onClick={handleGuest}
           className="w-full mt-6 text-center text-sm transition-opacity hover:opacity-70" style={{ color: "var(--text-muted)" }}>
           Продолжить без авторизации →
         </button>

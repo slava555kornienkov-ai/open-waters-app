@@ -1,26 +1,16 @@
 import { trpc } from "@/providers/trpc";
-import { useCallback, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router";
-import { LOGIN_PATH } from "@/const";
+import { useCallback, useMemo } from "react";
+import { useAppStore } from "@/store/useAppStore";
 
-type UseAuthOptions = {
-  redirectOnUnauthenticated?: boolean;
-  redirectPath?: string;
-};
-
-export function useAuth(options?: UseAuthOptions) {
-  const { redirectOnUnauthenticated = false, redirectPath = LOGIN_PATH } =
-    options ?? {};
-
-  const navigate = useNavigate();
+export function useAuth() {
+  const storeAuth = useAppStore((s) => s.isAuthenticated);
+  const storeUser = useAppStore((s) => s.user);
 
   const utils = trpc.useUtils();
 
   const {
-    data: user,
-    isLoading,
-    error,
-    refetch,
+    data: serverUser,
+    isLoading: serverLoading,
   } = trpc.auth.me.useQuery(undefined, {
     staleTime: 1000 * 60 * 5,
     retry: false,
@@ -29,30 +19,29 @@ export function useAuth(options?: UseAuthOptions) {
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: async () => {
       await utils.invalidate();
-      navigate(redirectPath);
     },
   });
 
-  const logout = useCallback(() => logoutMutation.mutate(), [logoutMutation]);
+  const logout = useCallback(() => {
+    logoutMutation.mutate();
+    // Also clear local store
+    useAppStore.getState().logoutUser();
+  }, [logoutMutation]);
 
-  useEffect(() => {
-    if (redirectOnUnauthenticated && !isLoading && !user) {
-      const currentPath = window.location.pathname;
-      if (currentPath !== redirectPath) {
-        navigate(redirectPath);
-      }
-    }
-  }, [redirectOnUnauthenticated, isLoading, user, navigate, redirectPath]);
+  // If either server auth or local store auth is active, consider authenticated
+  const isAuthenticated = !!serverUser || storeAuth;
+  const isLoading = serverLoading;
+
+  // Prefer server user, fallback to store user
+  const user = serverUser || storeUser;
 
   return useMemo(
     () => ({
       user: user ?? null,
-      isAuthenticated: !!user,
-      isLoading: isLoading || logoutMutation.isPending,
-      error,
+      isAuthenticated,
+      isLoading,
       logout,
-      refresh: refetch,
     }),
-    [user, isLoading, logoutMutation.isPending, error, logout, refetch],
+    [user, isAuthenticated, isLoading, logout],
   );
 }

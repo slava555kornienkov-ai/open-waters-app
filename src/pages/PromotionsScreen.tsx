@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Clock, Gift } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 
+const baseUrl = import.meta.env.BASE_URL || "/";
+
 const PROMOTIONS = [
   {
     id: 1,
@@ -68,7 +70,7 @@ export function PromotionsScreen() {
             {/* Image */}
             <div className="h-36 relative">
               <img
-                src={promo.image}
+                src={`${baseUrl}${promo.image.replace(/^\//, "")}`}
                 alt={promo.title}
                 className="w-full h-full object-cover"
               />

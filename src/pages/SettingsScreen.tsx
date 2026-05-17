@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import {
   ChevronLeft, Moon, Sun, Shield, User, Smartphone,
@@ -8,21 +8,42 @@ import { useAppStore } from "@/store/useAppStore";
 
 export function SettingsScreen() {
   const navigate = useNavigate();
-  const { showToast } = useAppStore();
+  const { showToast, user, updateUser } = useAppStore();
   const [darkMode, setDarkMode] = useState(false);
   const [twoFA, setTwoFA] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showChangePhone, setShowChangePhone] = useState(false);
-  const [profileName, setProfileName] = useState("Ольга Смирнова");
-  const [phoneNumber, setPhoneNumber] = useState("+7 (999) 123-45-67");
+  const [showPhoneCode, setShowPhoneCode] = useState(false);
+  const [phoneCode, setPhoneCode] = useState("");
+  const [pendingPhone, setPendingPhone] = useState("");
+  const [profileName, setProfileName] = useState(user?.name || "");
+  const [phoneNumber, setPhoneNumber] = useState(user?.phone || "");
   const [showTwoFASetup, setShowTwoFASetup] = useState(false);
   const [twoFAStep, setTwoFAStep] = useState<"request" | "code">("request");
   const [twoFACode, setTwoFACode] = useState("");
 
+  // Sync with store
+  useEffect(() => {
+    if (user) {
+      setProfileName(user.name);
+      setPhoneNumber(user.phone);
+    }
+  }, [user]);
+
+  // Load theme preference
+  useEffect(() => {
+    const saved = localStorage.getItem("darkMode");
+    if (saved === "true") {
+      setDarkMode(true);
+      document.body.classList.add("dark");
+    }
+  }, []);
+
   const toggleTheme = () => {
     const next = !darkMode;
     setDarkMode(next);
-    document.documentElement.classList.toggle("dark", next);
+    document.body.classList.toggle("dark", next);
+    localStorage.setItem("darkMode", String(next));
     showToast({ message: next ? "Тёмная тема включена" : "Светлая тема включена", type: "success" });
   };
 
@@ -53,13 +74,28 @@ export function SettingsScreen() {
   };
 
   const saveProfile = () => {
+    updateUser({ name: profileName });
     setShowEditProfile(false);
     showToast({ message: "Профиль обновлен!", type: "success" });
   };
 
   const savePhone = () => {
     setShowChangePhone(false);
-    showToast({ message: "Номер телефона обновлен!", type: "success" });
+    setPendingPhone(phoneNumber);
+    setShowPhoneCode(true);
+    setPhoneCode("");
+    showToast({ message: `Код отправлен на ${phoneNumber}`, type: "success" });
+  };
+
+  const verifyPhoneCode = () => {
+    if (phoneCode.length >= 4) {
+      updateUser({ phone: pendingPhone });
+      setShowPhoneCode(false);
+      setPhoneCode("");
+      showToast({ message: "Номер телефона успешно изменен!", type: "success" });
+    } else {
+      showToast({ message: "Введите корректный код", type: "error" });
+    }
   };
 
   const formatPhoneInput = (value: string) => {
@@ -71,6 +107,8 @@ export function SettingsScreen() {
     if (digits.length >= 8) formatted += `-${digits.slice(8, 10)}`;
     return formatted;
   };
+
+  const initials = (user?.name || "?").split(" ").map((n) => n[0]).join("").toUpperCase();
 
   return (
     <div className="min-h-full pb-4">
@@ -128,6 +166,26 @@ export function SettingsScreen() {
         </div>
       )}
 
+      {/* Phone Code Verification Modal */}
+      {showPhoneCode && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setShowPhoneCode(false)} />
+          <div className="relative w-full max-w-[430px] mx-auto surface-solid rounded-t-2xl p-5 animate-in slide-in-from-bottom duration-300">
+            <h3 className="text-lg font-bold mb-2" style={{ fontFamily: "var(--font-brand)" }}>Подтверждение номера</h3>
+            <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>Введите код из SMS, отправленный на {pendingPhone}</p>
+            <input type="text" placeholder="0000" value={phoneCode} onChange={e => setPhoneCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              className="w-full h-12 px-4 rounded-xl surface-solid text-lg text-center font-mono outline-none mb-4 tracking-[8px]"
+              style={{ color: "var(--text-primary)" }} />
+            <button onClick={verifyPhoneCode}
+              className="w-full h-12 rounded-xl text-white font-semibold text-sm active:scale-[0.97] transition-transform"
+              style={{ background: "linear-gradient(135deg,#06B6D4,#0891B2)", fontFamily: "var(--font-brand)" }}>
+              Подтвердить
+            </button>
+            <button onClick={() => setShowPhoneCode(false)} className="w-full mt-2 h-10 text-sm" style={{ color: "var(--text-muted)" }}>Отмена</button>
+          </div>
+        </div>
+      )}
+
       {/* Change Phone Modal */}
       {showChangePhone && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center">
@@ -159,12 +217,12 @@ export function SettingsScreen() {
       <div className="mx-4 mt-2 rounded-2xl liquid-glass p-4 flex items-center gap-3">
         <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #22D3EE, #60A5FA)", padding: "2px" }}>
           <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-            <span className="text-sm font-bold" style={{ fontFamily: "var(--font-brand)", background: "linear-gradient(135deg, #06B6D4, #0891B2)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>ОС</span>
+            <span className="text-sm font-bold" style={{ fontFamily: "var(--font-brand)", background: "linear-gradient(135deg, #06B6D4, #0891B2)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{initials}</span>
           </div>
         </div>
         <div>
-          <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{profileName}</p>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>{phoneNumber}</p>
+          <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{user?.name || "Гость"}</p>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>{user?.phone || "+7 (___) ___-__-__"}</p>
         </div>
       </div>
 

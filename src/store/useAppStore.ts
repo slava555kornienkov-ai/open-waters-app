@@ -27,6 +27,17 @@ interface Notification {
   id: string; title: string; message: string; read: boolean; timestamp: string;
 }
 
+interface UserData {
+  name: string;
+  phone: string;
+  bonusBalance: number;
+  visitsCount: number;
+  totalSpent: number;
+  referralCode: string;
+  invitedCount: number;
+  earnedFromReferrals: number;
+}
+
 interface AppState {
   activeTab: Tab;
   setActiveTab: (tab: Tab) => void;
@@ -50,6 +61,13 @@ interface AppState {
   unreadCount: number;
   addNotification: (n: Omit<Notification, "id" | "timestamp">) => void;
   markAllRead: () => void;
+  // User data
+  user: UserData | null;
+  setUser: (user: UserData | null) => void;
+  updateUser: (partial: Partial<UserData>) => void;
+  isAuthenticated: boolean;
+  login: (userData: UserData) => void;
+  logoutUser: () => void;
 }
 
 const defaultBooking: BookingForm = {
@@ -78,7 +96,7 @@ export const useAppStore = create<AppState>((set) => ({
   addWheelPrize: (prize) => set((state) => ({ wheelPrizes: [...state.wheelPrizes, prize] })),
   activeSubscription: null,
   setActiveSubscription: (sub) => set({ activeSubscription: sub }),
-  // Roles — default is "user", change to "employee" or "admin" as needed
+  // Roles
   userRole: "user" as UserRole,
   setUserRole: (role) => set({ userRole: role }),
   // Notifications
@@ -89,4 +107,13 @@ export const useAppStore = create<AppState>((set) => ({
     return { notifications: [newN, ...state.notifications], unreadCount: state.unreadCount + 1 };
   }),
   markAllRead: () => set((state) => ({ notifications: state.notifications.map(n => ({ ...n, read: true })), unreadCount: 0 })),
+  // User data
+  user: null,
+  setUser: (user) => set({ user, isAuthenticated: !!user }),
+  updateUser: (partial) => set((state) => ({
+    user: state.user ? { ...state.user, ...partial } : null,
+  })),
+  isAuthenticated: false,
+  login: (userData) => set({ user: userData, isAuthenticated: true }),
+  logoutUser: () => set({ user: null, isAuthenticated: false }),
 }));

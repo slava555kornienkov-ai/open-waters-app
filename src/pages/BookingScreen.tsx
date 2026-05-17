@@ -3,6 +3,8 @@ import { useNavigate } from "react-router";
 import { Minus, Plus, Check, QrCode, CreditCard, ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 
+const baseUrl = import.meta.env.BASE_URL || "/";
+
 const WEEKDAY_PRICES: Record<number, number> = { 1: 1700, 2: 2800, 3: 3800, 4: 4700 };
 const WEEKEND_PRICES: Record<number, number> = { 1: 2000, 2: 3200, 3: 4200, 4: 5000 };
 const EXTRA_HOUR_WEEKDAY = 600;
@@ -58,7 +60,7 @@ function calculateTotal(weekend: boolean, hours: number, boards: number, instruc
 
 export function BookingScreen() {
   const navigate = useNavigate();
-  const { bookingForm, updateBookingForm, showToast, setActiveSubscription } = useAppStore();
+  const { bookingForm, updateBookingForm, showToast } = useAppStore();
   const [selectedDate, setSelectedDate] = useState(bookingForm.date);
   const [selectedTime, setSelectedTime] = useState(bookingForm.time);
   const [duration, setDuration] = useState(bookingForm.duration);
@@ -102,9 +104,10 @@ export function BookingScreen() {
   };
 
   const handleBuySubscription = (sub: typeof SUBSCRIPTIONS[0]) => {
-    setActiveSubscription({ hours: 0, totalHours: sub.hours });
+    // Save subscription data and redirect to confirmation
+    updateBookingForm({ paymentMethod });
+    navigate("/subscription-confirm", { state: { sub } });
     setSubModal(null);
-    showToast({ message: `Абонемент на ${sub.hours} часов куплен!`, type: "success" });
   };
 
   return (
@@ -142,7 +145,7 @@ export function BookingScreen() {
 
       {/* Header */}
       <div className="px-5 pt-4 pb-2 flex items-center gap-3">
-        <img src="/logo-user.jpg" alt="Open Waters" className="w-9 h-9 object-cover rounded-full" />
+        <img src={`${baseUrl}logo-user.jpg`} alt="Open Waters" className="w-9 h-9 object-cover rounded-full" />
         <h1 className="text-xl font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>
           Бронирование
         </h1>
@@ -150,7 +153,7 @@ export function BookingScreen() {
 
       {/* Hero Image */}
       <div className="mx-4 rounded-2xl overflow-hidden h-28 relative animate-in fade-in zoom-in-95 duration-500">
-        <img src="/hero-sup.jpg" alt="SUP boards" className="w-full h-full object-cover" />
+        <img src={`${baseUrl}hero-sup.jpg`} alt="SUP boards" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
         <div className="absolute bottom-3 left-4">
           <p className="text-white text-xs opacity-90">Open Waters</p>

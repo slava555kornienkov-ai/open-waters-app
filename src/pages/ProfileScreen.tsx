@@ -3,23 +3,15 @@ import { useNavigate } from "react-router";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Settings, HelpCircle, MapPin, LogOut, ChevronRight,
-  Sparkles, Calendar, Wallet, Users, Share2, RefreshCw, Bell, Shield, X, QrCode
+  Sparkles, Calendar, Wallet, Users, Share2, RefreshCw, Bell, Shield, X, QrCode, User
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
-import { useAuth } from "@/hooks/useAuth";
 
 const mockVisits = [
   { id: 1, date: "14.05.2026", time: "10:00 - 12:00", duration: 2, boards: 1, instructor: true, rescuers: false, price: 2800, status: "completed" as const, earnedBonuses: 140 },
   { id: 2, date: "10.05.2026", time: "14:00 - 16:00", duration: 2, boards: 2, instructor: false, rescuers: false, price: 3200, status: "completed" as const, earnedBonuses: 160 },
   { id: 3, date: "02.05.2026", time: "11:00 - 13:00", duration: 2, boards: 1, instructor: true, rescuers: true, price: 5300, status: "completed" as const, earnedBonuses: 265 },
 ];
-
-const userData = {
-  name: "Ольга Смирнова", phone: "+7 (999) 123-45-67",
-  bonusBalance: 1250, visitsCount: 8, totalSpent: 15600,
-  referralCode: "OW-OLGA-77",
-  invitedCount: 2, earnedFromReferrals: 600,
-};
 
 // Loyalty levels: [threshold, name, color, discount]
 const LEVELS: [number, string, string, number][] = [
@@ -43,10 +35,10 @@ function getLoyaltyInfo(spent: number) {
 
 export function ProfileScreen() {
   const navigate = useNavigate();
-  const { showToast, notifications, unreadCount, markAllRead, userRole } = useAppStore();
-  const { logout } = useAuth();
+  const { showToast, notifications, unreadCount, markAllRead, userRole, user, logoutUser } = useAppStore();
   const [qrData, setQrData] = useState(`ow-check-${Date.now()}`);
   const [showNotifs, setShowNotifs] = useState(false);
+  const baseUrl = import.meta.env.BASE_URL || "/";
 
   const refreshQr = () => {
     setQrData(`ow-check-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
@@ -54,15 +46,16 @@ export function ProfileScreen() {
   };
 
   const shareReferral = async () => {
-    const text = `Присоединяйся к Open Waters! Мой реферальный код: ${userData.referralCode}\n+300 бонусов за первое посещение!`;
+    const code = user?.referralCode || "OW-REF";
+    const text = `Присоединяйся к Open Waters! Мой реферальный код: ${code}\n+300 бонусов за первое посещение!`;
     if (navigator.share) { await navigator.share({ title: "Open Waters", text }); }
     else { await navigator.clipboard.writeText(text); showToast({ message: "Ссылка скопирована!", type: "success" }); }
   };
 
-  // Yandex Maps review - opens in new tab
+  // Yandex Maps
   const openYandex = () => {
     try {
-      window.open("https://yandex.ru/maps/org/open_waters/", "_blank", "noopener,noreferrer");
+      window.open("https://yandex.ru/maps/-/CPcLJZmt", "_blank", "noopener,noreferrer");
     } catch {
       showToast({ message: "Не удалось открыть Яндекс Карты", type: "error" });
     }
@@ -72,6 +65,12 @@ export function ProfileScreen() {
   const goToSupport = () => navigate("/support");
   const goToAdmin = () => navigate("/admin");
 
+  const handleLogout = () => {
+    logoutUser();
+    showToast({ message: "Вы вышли из аккаунта", type: "info" });
+    navigate("/login");
+  };
+
   // My bookings with status
   const myBookings = [
     { id: "b1", date: "18.05.2026", time: "10:00", duration: 2, price: 2800, status: "pending" as const },
@@ -79,20 +78,35 @@ export function ProfileScreen() {
     { id: "b3", date: "10.05.2026", time: "14:00 - 16:00", duration: 2, price: 3200, status: "completed" as const },
   ];
 
+  const userName = user?.name || "Гость";
+  const userPhone = user?.phone || "+7 (___) ___-__-__";
+  const bonusBalance = user?.bonusBalance || 0;
+  const visitsCount = user?.visitsCount || 0;
+  const totalSpent = user?.totalSpent || 0;
+  const invitedCount = user?.invitedCount || 0;
+  const earnedFromReferrals = user?.earnedFromReferrals || 0;
+  const initials = userName.split(" ").map((n) => n[0]).join("").toUpperCase() || "?";
+
   return (
     <div className="min-h-full pb-4">
-      {/* Header */}
+      {/* Header with Settings */}
       <div className="px-5 pt-4 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img src="/logo-user.jpg" alt="Open Waters" className="w-8 h-8 object-cover rounded-full" />
+          <img src={`${baseUrl}logo-user.jpg`} alt="Open Waters" className="w-8 h-8 object-cover rounded-full" />
           <h1 className="text-xl font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>Профиль</h1>
         </div>
-        <button onClick={() => setShowNotifs(true)} className="relative p-2 active:scale-90 transition-transform">
-          <Bell size={20} style={{ color: unreadCount > 0 ? "#F97316" : "var(--text-secondary)" }} />
-          {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center border-2 border-white">{unreadCount}</span>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Settings button — NOW VISIBLE AT TOP */}
+          <button onClick={goToSettings} className="p-2 rounded-full active:scale-90 transition-transform" style={{ background: "rgba(6,182,212,0.08)" }}>
+            <Settings size={20} style={{ color: "var(--teal-600)" }} />
+          </button>
+          <button onClick={() => setShowNotifs(true)} className="relative p-2 active:scale-90 transition-transform">
+            <Bell size={20} style={{ color: unreadCount > 0 ? "#F97316" : "var(--text-secondary)" }} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center border-2 border-white">{unreadCount}</span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Notifications Modal */}
@@ -137,24 +151,24 @@ export function ProfileScreen() {
           <div className="w-[72px] h-[72px] rounded-full flex items-center justify-center mb-3" style={{ background: "linear-gradient(135deg, #22D3EE, #60A5FA)", padding: "3px" }}>
             <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
               <span className="text-2xl font-bold" style={{ fontFamily: "var(--font-brand)", background: "linear-gradient(135deg, #06B6D4, #0891B2)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                {userData.name.split(" ").map((n) => n[0]).join("")}
+                {initials}
               </span>
             </div>
           </div>
-          <h2 className="text-xl font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>{userData.name}</h2>
-          <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>{userData.phone}</p>
+          <h2 className="text-xl font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>{userName}</h2>
+          <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>{userPhone}</p>
           <div className="flex gap-2 mt-4 w-full justify-center">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: "rgba(6,182,212,0.1)" }}>
               <Sparkles size={14} style={{ color: "var(--teal-600)" }} />
-              <span className="text-xs font-semibold" style={{ color: "var(--teal-600)" }}>{userData.bonusBalance.toLocaleString()}</span>
+              <span className="text-xs font-semibold" style={{ color: "var(--teal-600)" }}>{bonusBalance.toLocaleString()}</span>
             </div>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: "rgba(6,182,212,0.1)" }}>
               <Calendar size={14} style={{ color: "var(--teal-600)" }} />
-              <span className="text-xs font-semibold" style={{ color: "var(--teal-600)" }}>{userData.visitsCount}</span>
+              <span className="text-xs font-semibold" style={{ color: "var(--teal-600)" }}>{visitsCount}</span>
             </div>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: "rgba(6,182,212,0.1)" }}>
               <Wallet size={14} style={{ color: "var(--teal-600)" }} />
-              <span className="text-xs font-semibold" style={{ color: "var(--teal-600)" }}>{userData.totalSpent.toLocaleString()}</span>
+              <span className="text-xs font-semibold" style={{ color: "var(--teal-600)" }}>{totalSpent.toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -162,7 +176,7 @@ export function ProfileScreen() {
 
       {/* Loyalty */}
       {(() => {
-        const li = getLoyaltyInfo(userData.totalSpent);
+        const li = getLoyaltyInfo(totalSpent);
         return (
           <div className="mx-4 mt-3 rounded-2xl surface-solid p-4 animate-in fade-in slide-in-from-bottom-5 duration-500 delay-100">
             <div className="flex justify-between items-center mb-2">
@@ -171,7 +185,7 @@ export function ProfileScreen() {
                 <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{li.name}</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: `${li.color}18`, color: li.color }}>скидка {li.discount}%</span>
               </div>
-              <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>{userData.totalSpent.toLocaleString()} ₽</span>
+              <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>{totalSpent.toLocaleString()} ₽</span>
             </div>
             <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(6,182,212,0.1)" }}>
               <div className="h-full rounded-full transition-all duration-700" style={{ width: `${li.progress}%`, background: `linear-gradient(90deg, ${li.color}, #22D3EE)` }} />
@@ -246,15 +260,14 @@ export function ProfileScreen() {
           <Share2 size={18} /> Поделиться ссылкой
         </button>
         <div className="flex gap-4 mt-3">
-          <div className="flex items-center gap-1.5"><Users size={14} style={{ color: "var(--text-muted)" }} /><span className="text-xs" style={{ color: "var(--text-muted)" }}>Приглашено: {userData.invitedCount}</span></div>
-          <div className="flex items-center gap-1.5"><Sparkles size={14} style={{ color: "var(--text-muted)" }} /><span className="text-xs" style={{ color: "var(--text-muted)" }}>Заработано: {userData.earnedFromReferrals}</span></div>
+          <div className="flex items-center gap-1.5"><Users size={14} style={{ color: "var(--text-muted)" }} /><span className="text-xs" style={{ color: "var(--text-muted)" }}>Приглашено: {invitedCount}</span></div>
+          <div className="flex items-center gap-1.5"><Sparkles size={14} style={{ color: "var(--text-muted)" }} /><span className="text-xs" style={{ color: "var(--text-muted)" }}>Заработано: {earnedFromReferrals}</span></div>
         </div>
       </div>
 
-      {/* Action Buttons */}
+      {/* Action Buttons — Settings removed from here (moved to header) */}
       <div className="mx-4 mt-3 mb-6 space-y-2 animate-in fade-in slide-in-from-bottom-5 duration-500 delay-500">
         {[
-          { icon: Settings, label: "Настройки", action: goToSettings },
           { icon: HelpCircle, label: "Поддержка", action: goToSupport },
           { icon: MapPin, label: "Отзыв на Яндекс Картах", action: openYandex },
           // Employee → QR Scanner only
@@ -272,7 +285,7 @@ export function ProfileScreen() {
           </button>
         ))}
 
-        <button onClick={logout} className="w-full flex items-center justify-between p-4 rounded-xl surface-solid transition-all active:scale-[0.98]">
+        <button onClick={handleLogout} className="w-full flex items-center justify-between p-4 rounded-xl surface-solid transition-all active:scale-[0.98]">
           <div className="flex items-center gap-3">
             <LogOut size={20} style={{ color: "#F97316" }} />
             <span className="text-sm font-medium" style={{ color: "#F97316" }}>Выйти</span>

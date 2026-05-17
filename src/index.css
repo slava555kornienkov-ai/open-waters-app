@@ -226,3 +226,34 @@
   height: var(--tg-viewport-height, 100vh);
   min-height: var(--tg-viewport-height, 100vh);
 }
+
+/* ========== DARK MODE ========== */
+body.dark .app-viewport {
+  background: linear-gradient(135deg, #0B1426 0%, #0F2440 25%, #0C2D4A 50%, #0F1F3D 75%, #0C1A33 100%) !important;
+  animation: none !important;
+}
+body.dark {
+  background: #0B1426 !important;
+}
+body.dark .surface-solid {
+  background: #1A2332 !important;
+  border-color: rgba(6, 182, 212, 0.2) !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3) !important;
+}
+body.dark .liquid-glass {
+  background: rgba(26, 35, 50, 0.3) !important;
+  box-shadow: inset 0 1px 1px rgba(255,255,255,0.05), 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+}
+body.dark .liquid-glass::before { opacity: 0.15 !important; }
+body.dark .liquid-glass::after { opacity: 0.3 !important; }
+body.dark .glossy-glass {
+  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 100%) !important;
+}
+body.dark {
+  --text-primary: #F0F9FF !important;
+  --text-secondary: #94A3B8 !important;
+  --text-muted: #64748B !important;
+  --bg-base: #0B1426 !important;
+  --surface: #1A2332 !important;
+  --border: rgba(6, 182, 212, 0.2) !important;
+}
