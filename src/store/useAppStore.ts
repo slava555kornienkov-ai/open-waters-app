@@ -53,10 +53,8 @@ interface AppState {
   addWheelPrize: (prize: WheelPrize) => void;
   activeSubscription: { hours: number; totalHours: number } | null;
   setActiveSubscription: (sub: { hours: number; totalHours: number } | null) => void;
-  // Roles
   userRole: UserRole;
   setUserRole: (role: UserRole) => void;
-  // Notifications
   notifications: Notification[];
   unreadCount: number;
   addNotification: (n: Omit<Notification, "id" | "timestamp">) => void;
@@ -68,6 +66,9 @@ interface AppState {
   isAuthenticated: boolean;
   login: (userData: UserData) => void;
   logoutUser: () => void;
+  // Dark mode
+  darkMode: boolean;
+  setDarkMode: (v: boolean) => void;
 }
 
 const defaultBooking: BookingForm = {
@@ -80,6 +81,20 @@ const defaultNotifications: Notification[] = [
   { id: "1", title: "Бронирование подтверждено", message: "Ваша бронь на 16.05 10:00 подтверждена", read: false, timestamp: "14:32" },
   { id: "2", title: "Новая акция!", message: "Скидка 20% на будние дни", read: false, timestamp: "Вчера" },
 ];
+
+// Load user from localStorage
+function loadUser(): UserData | null {
+  try {
+    const raw = localStorage.getItem("ow_user");
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+// Save user to localStorage
+function saveUser(u: UserData | null) {
+  if (u) localStorage.setItem("ow_user", JSON.stringify(u));
+  else localStorage.removeItem("ow_user");
+}
 
 export const useAppStore = create<AppState>((set) => ({
   activeTab: "booking",
@@ -96,10 +111,8 @@ export const useAppStore = create<AppState>((set) => ({
   addWheelPrize: (prize) => set((state) => ({ wheelPrizes: [...state.wheelPrizes, prize] })),
   activeSubscription: null,
   setActiveSubscription: (sub) => set({ activeSubscription: sub }),
-  // Roles
   userRole: "user" as UserRole,
   setUserRole: (role) => set({ userRole: role }),
-  // Notifications
   notifications: defaultNotifications,
   unreadCount: defaultNotifications.filter(n => !n.read).length,
   addNotification: (n) => set((state) => {
@@ -107,13 +120,27 @@ export const useAppStore = create<AppState>((set) => ({
     return { notifications: [newN, ...state.notifications], unreadCount: state.unreadCount + 1 };
   }),
   markAllRead: () => set((state) => ({ notifications: state.notifications.map(n => ({ ...n, read: true })), unreadCount: 0 })),
-  // User data
-  user: null,
-  setUser: (user) => set({ user, isAuthenticated: !!user }),
-  updateUser: (partial) => set((state) => ({
-    user: state.user ? { ...state.user, ...partial } : null,
-  })),
-  isAuthenticated: false,
-  login: (userData) => set({ user: userData, isAuthenticated: true }),
-  logoutUser: () => set({ user: null, isAuthenticated: false }),
+  // User data — loaded from localStorage
+  user: loadUser(),
+  isAuthenticated: !!loadUser(),
+  setUser: (user) => { saveUser(user); set({ user, isAuthenticated: !!user }); },
+  updateUser: (partial) => set((state) => {
+    const updated = state.user ? { ...state.user, ...partial } : null;
+    if (updated) saveUser(updated);
+    return { user: updated };
+  }),
+  login: (userData) => {
+    saveUser(userData);
+    set({ user: userData, isAuthenticated: true });
+  },
+  logoutUser: () => {
+    saveUser(null);
+    set({ user: null, isAuthenticated: false });
+  },
+  // Dark mode
+  darkMode: localStorage.getItem("darkMode") === "true",
+  setDarkMode: (v) => {
+    localStorage.setItem("darkMode", String(v));
+    set({ darkMode: v });
+  },
 }));

@@ -8,8 +8,7 @@ import { useAppStore } from "@/store/useAppStore";
 
 export function SettingsScreen() {
   const navigate = useNavigate();
-  const { showToast, user, updateUser } = useAppStore();
-  const [darkMode, setDarkMode] = useState(false);
+  const { showToast, user, updateUser, darkMode, setDarkMode } = useAppStore();
   const [twoFA, setTwoFA] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showChangePhone, setShowChangePhone] = useState(false);
@@ -30,20 +29,15 @@ export function SettingsScreen() {
     }
   }, [user]);
 
-  // Load theme preference
+  // Apply theme from store
   useEffect(() => {
-    const saved = localStorage.getItem("darkMode");
-    if (saved === "true") {
-      setDarkMode(true);
-      document.body.classList.add("dark");
-    }
-  }, []);
+    document.body.classList.toggle("dark", darkMode);
+  }, [darkMode]);
 
   const toggleTheme = () => {
     const next = !darkMode;
     setDarkMode(next);
     document.body.classList.toggle("dark", next);
-    localStorage.setItem("darkMode", String(next));
     showToast({ message: next ? "Тёмная тема включена" : "Светлая тема включена", type: "success" });
   };
 

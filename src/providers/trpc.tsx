@@ -7,11 +7,22 @@ import type { ReactNode } from "react";
 
 export const trpc = createTRPCReact<AppRouter>();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 1000 * 60 * 5,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+const API_URL = import.meta.env.VITE_API_URL || "/api/trpc";
+
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
-      url: "/api/trpc",
+      url: API_URL,
       transformer: superjson,
       fetch(input, init) {
         return globalThis.fetch(input, {
