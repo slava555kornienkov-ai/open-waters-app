@@ -13,13 +13,13 @@ export function BookingConfirmScreen() {
 
   const createBooking = trpc.booking.create.useMutation({
     onSuccess: () => {
-      showToast({ message: "Бронирование создано! Напомним за 24ч и за 1ч", type: "success" });
-      setTimeout(() => navigate("/booking"), 2000);
+      showToast({ message: "Бронирование создано!", type: "success" });
+      setIsSubmitting(false);
+      setTimeout(() => navigate("/booking"), 1500);
     },
     onError: (err) => {
-      console.error("Booking error:", err);
-      showToast({ message: "Ошибка сервера. Сохранено локально.", type: "info" });
-      setTimeout(() => navigate("/booking"), 2000);
+      setIsSubmitting(false);
+      showToast({ message: "Ошибка: " + (err.message || "сервер недоступен"), type: "error" });
     },
   });
 
@@ -29,10 +29,8 @@ export function BookingConfirmScreen() {
 
     const tg = window.Telegram?.WebApp;
     const telegramChatId = tg?.initDataUnsafe?.user?.id;
-
     const weekend = [0, 6].includes(new Date(bookingForm.date).getDay());
 
-    // Calculate total
     const prices = [0, 1700, 2800, 3800, 4700];
     let base = prices[Math.min(bookingForm.duration, 4)] || 4700;
     if (bookingForm.duration > 4) base += (bookingForm.duration - 4) * 600;
@@ -81,9 +79,7 @@ export function BookingConfirmScreen() {
     <div className="min-h-full pb-4">
       <div className="px-5 pt-4 pb-2 flex items-center gap-3">
         <button onClick={() => navigate("/booking")} className="w-8 h-8 rounded-full surface-solid flex items-center justify-center active:scale-90 transition-transform">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-primary)" }}>
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-primary)" }}><path d="M15 18l-6-6 6-6"/></svg>
         </button>
         <h1 className="text-lg font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>Подтверждение</h1>
       </div>
@@ -96,7 +92,6 @@ export function BookingConfirmScreen() {
         <p className="text-sm mt-2 text-center" style={{ color: "var(--text-secondary)" }}>
           {bookingForm.date}, {bookingForm.time} - {String(Number(bookingForm.time.split(":")[0]) + bookingForm.duration).padStart(2, "0")}:00
         </p>
-        <p className="text-xs mt-2 text-center" style={{ color: "var(--text-muted)" }}>Напомним за 24 часа и за 1 час до визита</p>
 
         <div className="w-full mt-5 space-y-2">
           {[
@@ -144,7 +139,6 @@ export function BookingConfirmScreen() {
         )}
       </div>
 
-      {/* Actions */}
       <div className="mx-4 mt-4 space-y-2">
         <button onClick={handlePayment} disabled={isSubmitting}
           className="w-full h-14 rounded-xl text-white font-semibold text-base transition-all active:scale-[0.97] disabled:opacity-60"

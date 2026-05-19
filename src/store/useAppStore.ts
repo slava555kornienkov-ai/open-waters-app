@@ -59,14 +59,12 @@ interface AppState {
   unreadCount: number;
   addNotification: (n: Omit<Notification, "id" | "timestamp">) => void;
   markAllRead: () => void;
-  // User data
   user: UserData | null;
   setUser: (user: UserData | null) => void;
   updateUser: (partial: Partial<UserData>) => void;
   isAuthenticated: boolean;
   login: (userData: UserData) => void;
   logoutUser: () => void;
-  // Dark mode
   darkMode: boolean;
   setDarkMode: (v: boolean) => void;
 }
@@ -77,11 +75,6 @@ const defaultBooking: BookingForm = {
   instructor: false, rescuers: false, bonusesUsed: 0, paymentMethod: "qr",
 };
 
-const defaultNotifications: Notification[] = [
-  { id: "1", title: "Бронирование подтверждено", message: "Ваша бронь на 16.05 10:00 подтверждена", read: false, timestamp: "14:32" },
-  { id: "2", title: "Новая акция!", message: "Скидка 20% на будние дни", read: false, timestamp: "Вчера" },
-];
-
 // Load user from localStorage
 function loadUser(): UserData | null {
   try {
@@ -90,7 +83,6 @@ function loadUser(): UserData | null {
   } catch { return null; }
 }
 
-// Save user to localStorage
 function saveUser(u: UserData | null) {
   if (u) localStorage.setItem("ow_user", JSON.stringify(u));
   else localStorage.removeItem("ow_user");
@@ -105,7 +97,7 @@ export const useAppStore = create<AppState>((set) => ({
   bookingForm: { ...defaultBooking },
   updateBookingForm: (partial) => set((state) => ({ bookingForm: { ...state.bookingForm, ...partial } })),
   resetBookingForm: () => set({ bookingForm: { ...defaultBooking } }),
-  spinsAvailable: 3,
+  spinsAvailable: 0,
   setSpinsAvailable: (n) => set((state) => ({ spinsAvailable: typeof n === "function" ? n(state.spinsAvailable) : n })),
   wheelPrizes: [],
   addWheelPrize: (prize) => set((state) => ({ wheelPrizes: [...state.wheelPrizes, prize] })),
@@ -113,14 +105,13 @@ export const useAppStore = create<AppState>((set) => ({
   setActiveSubscription: (sub) => set({ activeSubscription: sub }),
   userRole: "user" as UserRole,
   setUserRole: (role) => set({ userRole: role }),
-  notifications: defaultNotifications,
-  unreadCount: defaultNotifications.filter(n => !n.read).length,
+  notifications: [],
+  unreadCount: 0,
   addNotification: (n) => set((state) => {
     const newN: Notification = { ...n, id: Date.now().toString(), timestamp: new Date().toLocaleTimeString("ru", { hour: "2-digit", minute: "2-digit" }) };
     return { notifications: [newN, ...state.notifications], unreadCount: state.unreadCount + 1 };
   }),
   markAllRead: () => set((state) => ({ notifications: state.notifications.map(n => ({ ...n, read: true })), unreadCount: 0 })),
-  // User data — loaded from localStorage
   user: loadUser(),
   isAuthenticated: !!loadUser(),
   setUser: (user) => { saveUser(user); set({ user, isAuthenticated: !!user }); },
@@ -129,18 +120,8 @@ export const useAppStore = create<AppState>((set) => ({
     if (updated) saveUser(updated);
     return { user: updated };
   }),
-  login: (userData) => {
-    saveUser(userData);
-    set({ user: userData, isAuthenticated: true });
-  },
-  logoutUser: () => {
-    saveUser(null);
-    set({ user: null, isAuthenticated: false });
-  },
-  // Dark mode
+  login: (userData) => { saveUser(userData); set({ user: userData, isAuthenticated: true }); },
+  logoutUser: () => { saveUser(null); localStorage.removeItem("auth_token"); set({ user: null, isAuthenticated: false, notifications: [], unreadCount: 0, wheelPrizes: [], spinsAvailable: 0 }); },
   darkMode: localStorage.getItem("darkMode") === "true",
-  setDarkMode: (v) => {
-    localStorage.setItem("darkMode", String(v));
-    set({ darkMode: v });
-  },
+  setDarkMode: (v) => { localStorage.setItem("darkMode", String(v)); set({ darkMode: v }); },
 }));

@@ -9,7 +9,7 @@ import { useAppStore } from "@/store/useAppStore";
 
 export function ProfileScreen() {
   const navigate = useNavigate();
-  const { showToast, notifications, unreadCount, markAllRead, user, logoutUser } = useAppStore();
+  const { showToast, notifications, unreadCount, markAllRead, user, logoutUser, userRole } = useAppStore();
   const [qrData, setQrData] = useState(`ow-check-${Date.now()}`);
   const [showNotifs, setShowNotifs] = useState(false);
   const baseUrl = import.meta.env.BASE_URL || "/";
@@ -32,11 +32,12 @@ export function ProfileScreen() {
 
   const handleLogout = () => {
     logoutUser();
-    showToast({ message: "Вы вышли", type: "info" });
-    window.location.reload();
+    showToast({ message: "Вы вышли из аккаунта", type: "info" });
+    navigate("/login");
   };
 
   const userName = user?.name || "Гость";
+  const userPhone = user?.phone || "";
   const bonusBalance = user?.bonusBalance || 0;
   const visitsCount = user?.visitsCount || 0;
   const totalSpent = user?.totalSpent || 0;
@@ -44,7 +45,7 @@ export function ProfileScreen() {
 
   return (
     <div className="min-h-full pb-4">
-      {/* Header with Settings */}
+      {/* Header */}
       <div className="px-5 pt-4 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <img src={`${baseUrl}logo-user.jpg`} alt="Open Waters" className="w-8 h-8 object-cover rounded-full" />
@@ -72,18 +73,16 @@ export function ProfileScreen() {
               <h3 className="text-lg font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>Уведомления</h3>
               <div className="flex items-center gap-2">
                 {unreadCount > 0 && (
-                  <button onClick={markAllRead} className="text-xs font-medium px-3 py-1.5 rounded-full transition-opacity hover:opacity-70" style={{ color: "var(--teal-500)", background: "rgba(6,182,212,0.08)" }}>
-                    Прочитать все
-                  </button>
+                  <button onClick={markAllRead} className="text-xs font-medium px-3 py-1.5 rounded-full" style={{ color: "var(--teal-500)", background: "rgba(6,182,212,0.08)" }}>Прочитать все</button>
                 )}
-                <button onClick={() => setShowNotifs(false)} className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90" style={{ background: "rgba(148,163,184,0.15)" }}>
-                  <X size={16} style={{ color: "var(--text-muted)" }} />
-                </button>
+                <button onClick={() => setShowNotifs(false)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "rgba(148,163,184,0.15)" }}><X size={16} style={{ color: "var(--text-muted)" }} /></button>
               </div>
             </div>
             <div className="space-y-2 overflow-y-auto" style={{ maxHeight: "50vh" }}>
-              {notifications.map((n) => (
-                <div key={n.id} className="p-3 rounded-xl transition-all" style={{ background: n.read ? "rgba(248,250,252,1)" : "rgba(6,182,212,0.04)", borderLeft: n.read ? "none" : "3px solid #06B6D4" }}>
+              {notifications.length === 0 ? (
+                <p className="text-center text-sm py-8" style={{ color: "var(--text-muted)" }}>Нет уведомлений</p>
+              ) : notifications.map((n) => (
+                <div key={n.id} className="p-3 rounded-xl" style={{ background: n.read ? "rgba(248,250,252,1)" : "rgba(6,182,212,0.04)", borderLeft: n.read ? "none" : "3px solid #06B6D4" }}>
                   <div className="flex justify-between items-start">
                     <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{n.title}</p>
                     <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>{n.timestamp}</span>
@@ -91,16 +90,13 @@ export function ProfileScreen() {
                   <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{n.message}</p>
                 </div>
               ))}
-              {notifications.length === 0 && (
-                <p className="text-center text-sm py-8" style={{ color: "var(--text-muted)" }}>Нет уведомлений</p>
-              )}
             </div>
           </div>
         </div>
       )}
 
       {/* User Card */}
-      <div className="mx-4 rounded-2xl liquid-glass p-5 animate-in fade-in slide-in-from-bottom-5 duration-500">
+      <div className="mx-4 rounded-2xl liquid-glass p-5">
         <div className="flex flex-col items-center">
           <div className="w-[72px] h-[72px] rounded-full flex items-center justify-center mb-3" style={{ background: "linear-gradient(135deg, #22D3EE, #60A5FA)", padding: "3px" }}>
             <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
@@ -108,6 +104,7 @@ export function ProfileScreen() {
             </div>
           </div>
           <h2 className="text-xl font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>{userName}</h2>
+          {userPhone && <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>{userPhone}</p>}
           <div className="flex gap-2 mt-4 w-full justify-center">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: "rgba(6,182,212,0.1)" }}>
               <Sparkles size={14} style={{ color: "var(--teal-600)" }} />
@@ -126,19 +123,19 @@ export function ProfileScreen() {
       </div>
 
       {/* QR Code */}
-      <div className="mx-4 mt-3 rounded-2xl liquid-glass p-5 flex flex-col items-center animate-in fade-in slide-in-from-bottom-5 duration-500 delay-200">
+      <div className="mx-4 mt-3 rounded-2xl liquid-glass p-5 flex flex-col items-center">
         <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>QR-код для входа</h3>
         <div className="mt-3 p-3 bg-white rounded-xl shadow-sm">
           <QRCodeSVG value={qrData} size={140} level="M" />
         </div>
         <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Покажите на ресепшн</p>
-        <button onClick={refreshQr} className="flex items-center gap-1.5 mt-2 text-sm font-medium transition-opacity hover:opacity-80 active:scale-95" style={{ color: "var(--teal-500)" }}>
+        <button onClick={refreshQr} className="flex items-center gap-1.5 mt-2 text-sm font-medium" style={{ color: "var(--teal-500)" }}>
           <RefreshCw size={14} /> Обновить код
         </button>
       </div>
 
       {/* Referral */}
-      <div className="mx-4 mt-3 rounded-2xl liquid-glass p-4 animate-in fade-in slide-in-from-bottom-5 duration-500 delay-300">
+      <div className="mx-4 mt-3 rounded-2xl liquid-glass p-4">
         <h3 className="text-lg font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>Пригласите друга</h3>
         <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>+300 бонусов за каждого друга</p>
         <button onClick={shareReferral} className="w-full mt-3 h-12 rounded-xl glossy-glass flex items-center justify-center gap-2 text-white font-semibold transition-transform active:scale-95"
@@ -148,11 +145,11 @@ export function ProfileScreen() {
       </div>
 
       {/* Action Buttons */}
-      <div className="mx-4 mt-3 mb-6 space-y-2 animate-in fade-in slide-in-from-bottom-5 duration-500 delay-400">
+      <div className="mx-4 mt-3 mb-6 space-y-2">
         {[
           { icon: HelpCircle, label: "Поддержка", action: () => navigate("/support") },
           { icon: MapPin, label: "Отзыв на Яндекс Картах", action: openYandex },
-          { icon: Shield, label: "Админ-панель", action: () => navigate("/admin") },
+          ...(userRole === "admin" || userRole === "employee" ? [{ icon: Shield, label: "Админ-панель", action: () => navigate("/admin") }] : []),
         ].map((item, i) => (
           <button key={i} onClick={item.action} className="w-full flex items-center justify-between p-4 rounded-xl surface-solid transition-all active:scale-[0.98]">
             <div className="flex items-center gap-3">

@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from "react-router";
+import { Routes, Route, useLocation, Navigate } from "react-router";
 import { useEffect } from "react";
 import { AppLayout } from "./components/AppLayout";
 import { ProfileScreen } from "./pages/ProfileScreen";
@@ -10,7 +10,9 @@ import { BookingConfirmScreen } from "./pages/BookingConfirmScreen";
 import { SettingsScreen } from "./pages/SettingsScreen";
 import { AdminScreen } from "./pages/AdminScreen";
 import { SubscriptionConfirmScreen } from "./pages/SubscriptionConfirmScreen";
+import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import { useAppStore } from "./store/useAppStore";
 
 function useTelegramBackButton() {
   const location = useLocation();
@@ -23,22 +25,29 @@ function useTelegramBackButton() {
       tg.BackButton.show();
       const handleBack = () => { window.history.back(); };
       tg.BackButton.onClick(handleBack);
-      return () => {
-        tg.BackButton.offClick(handleBack);
-        tg.BackButton.hide();
-      };
+      return () => { tg.BackButton.offClick(handleBack); tg.BackButton.hide(); };
     } else {
       tg.BackButton.hide();
     }
   }, [location.pathname]);
 }
 
+// Auth guard — redirects to login if not authenticated
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+  const location = useLocation();
+  if (!isAuthenticated && location.pathname !== "/login") {
+    return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+}
+
 export default function App() {
   useTelegramBackButton();
-
   return (
     <Routes>
-      <Route element={<AppLayout />}>
+      <Route path="/login" element={<Login />} />
+      <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
         <Route path="/" element={<BookingScreen />} />
         <Route path="/profile" element={<ProfileScreen />} />
         <Route path="/wheel" element={<WheelScreen />} />

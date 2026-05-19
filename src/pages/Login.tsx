@@ -1,100 +1,53 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
-import { LogIn, AlertCircle, RefreshCw } from "lucide-react";
+import { User, Phone, Lock, LogIn, Eye, EyeOff } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
-
-function verifyTelegramInitData(initData: string): { valid: boolean; user?: { id: number; first_name: string; last_name?: string; username?: string; photo_url?: string } } {
-  try {
-    const params = new URLSearchParams(initData);
-    const hash = params.get("hash");
-    const userStr = params.get("user");
-    if (!hash || !userStr) return { valid: false };
-    const user = JSON.parse(userStr);
-    if (!user?.id) return { valid: false };
-    return { valid: true, user };
-  } catch {
-    return { valid: false };
-  }
-}
 
 export default function Login() {
   const navigate = useNavigate();
-  const { showToast, login, isAuthenticated } = useAppStore();
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate("/booking");
-      return;
-    }
-
-    // Try Telegram auto-auth
-    const tg = window.Telegram?.WebApp;
-    if (tg?.initData) {
-      const result = verifyTelegramInitData(tg.initData);
-      if (result.valid && result.user) {
-        const u = result.user;
-        const referralCode = `OW-${u.first_name.toUpperCase().replace(/\s/g, "-")}-${Math.floor(Math.random() * 9000 + 1000)}`;
-        login({
-          name: `${u.first_name}${u.last_name ? ` ${u.last_name}` : ""}`,
-          phone: u.username ? `@${u.username}` : "",
-          bonusBalance: 300,
-          visitsCount: 0,
-          totalSpent: 0,
-          referralCode,
-          invitedCount: 0,
-          earnedFromReferrals: 0,
-        });
-        showToast({ message: "Добро пожаловать! +300 бонусов", type: "success" });
-        navigate("/booking");
-        return;
-      }
-    }
-
-    setIsLoading(false);
-  }, [isAuthenticated, navigate, login, showToast]);
-
-  const handleAuth = () => {
-    setError("");
-    const tg = window.Telegram?.WebApp;
-
-    if (tg?.initData) {
-      const result = verifyTelegramInitData(tg.initData);
-      if (result.valid && result.user) {
-        const u = result.user;
-        const referralCode = `OW-${u.first_name.toUpperCase().replace(/\s/g, "-")}-${Math.floor(Math.random() * 9000 + 1000)}`;
-        login({
-          name: `${u.first_name}${u.last_name ? ` ${u.last_name}` : ""}`,
-          phone: u.username ? `@${u.username}` : "",
-          bonusBalance: 300,
-          visitsCount: 0,
-          totalSpent: 0,
-          referralCode,
-          invitedCount: 0,
-          earnedFromReferrals: 0,
-        });
-        showToast({ message: "Добро пожаловать! +300 бонусов", type: "success" });
-        navigate("/booking");
-        return;
-      }
-    }
-
-    setError("Откройте приложение через Telegram Bot");
-  };
-
+  const { showToast, login } = useAppStore();
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const baseUrl = import.meta.env.BASE_URL || "/";
 
-  if (isLoading) {
-    return (
-      <div className="app-viewport flex flex-col items-center justify-center min-h-screen px-6">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-3 border-cyan-200 border-t-cyan-500 rounded-full animate-spin" />
-          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Загрузка...</p>
-        </div>
-      </div>
-    );
-  }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phone.trim() || !password.trim()) { showToast({ message: "Заполните все поля", type: "error" }); return; }
+    if (mode === "register" && !name.trim()) { showToast({ message: "Введите имя", type: "error" }); return; }
+    if (password.length < 4) { showToast({ message: "Пароль минимум 4 символа", type: "error" }); return; }
+    setIsSubmitting(true);
+    setTimeout(() => {
+      setIsSubmitting(false);
+      const userName = mode === "register" ? name : ("Пользователь " + phone);
+      const referralCode = `OW-${Math.floor(Math.random() * 9000 + 1000)}`;
+      login({
+        name: userName,
+        phone: phone,
+        bonusBalance: mode === "register" ? 300 : 0,
+        visitsCount: 0,
+        totalSpent: 0,
+        referralCode,
+        invitedCount: 0,
+        earnedFromReferrals: 0,
+      });
+      showToast({ message: mode === "register" ? "Регистрация успешна! +300 бонусов" : "Добро пожаловать!", type: "success" });
+      navigate("/booking");
+    }, 800);
+  };
+
+  const formatPhone = (value: string) => {
+    const digits = value.replace(/\D/g, "").replace(/^7/, "").slice(0, 10);
+    let formatted = "+7";
+    if (digits.length > 0) formatted += ` (${digits.slice(0, 3)}`;
+    if (digits.length >= 3) formatted += `) ${digits.slice(3, 6)}`;
+    if (digits.length >= 6) formatted += `-${digits.slice(6, 8)}`;
+    if (digits.length >= 8) formatted += `-${digits.slice(8, 10)}`;
+    return formatted;
+  };
 
   return (
     <div className="app-viewport flex flex-col items-center justify-center min-h-screen px-6 relative">
@@ -113,31 +66,45 @@ export default function Login() {
         </div>
 
         <div className="rounded-2xl liquid-glass p-6">
-          <h2 className="text-lg font-bold text-center mb-2" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>Добро пожаловать</h2>
-          <p className="text-sm text-center mb-5" style={{ color: "var(--text-secondary)" }}>
-            Войдите через Telegram для безопасного доступа
-          </p>
+          <div className="flex gap-1 p-1 rounded-xl surface-solid mb-6">
+            {(["login","register"] as const).map((tab) => (
+              <button key={tab} onClick={() => setMode(tab)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all"
+                style={{ background: mode === tab ? "white" : "transparent", color: mode === tab ? "var(--teal-600)" : "var(--text-muted)", boxShadow: mode === tab ? "0 2px 8px rgba(0,0,0,0.06)" : "none" }}>
+                {tab === "login" ? "Вход" : "Регистрация"}
+              </button>
+            ))}
+          </div>
 
-          {error && (
-            <div className="mb-4 p-3 rounded-xl text-sm flex items-center gap-2" style={{ background: "rgba(239,68,68,0.1)", color: "#EF4444" }}>
-              <AlertCircle size={16} />
-              {error}
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {mode === "register" && (
+              <div className="relative">
+                <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+                <input type="text" placeholder="Ваше имя" value={name} onChange={(e) => setName(e.target.value)}
+                  className="w-full h-12 pl-11 pr-4 rounded-xl surface-solid text-sm outline-none" style={{ color: "var(--text-primary)" }} />
+              </div>
+            )}
+            <div className="relative">
+              <Phone size={18} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+              <input type="tel" placeholder="+7 (999) 000-00-00" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))}
+                className="w-full h-12 pl-11 pr-4 rounded-xl surface-solid text-sm outline-none" style={{ color: "var(--text-primary)", letterSpacing: "0.5px" }} />
             </div>
-          )}
+            <div className="relative">
+              <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+              <input type={showPassword ? "text" : "password"} placeholder="Пароль (мин. 4 символа)" value={password} onChange={(e) => setPassword(e.target.value)}
+                className="w-full h-12 pl-11 pr-11 rounded-xl surface-solid text-sm outline-none" style={{ color: "var(--text-primary)" }} />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1">
+                {showPassword ? <EyeOff size={18} style={{ color: "var(--text-muted)" }} /> : <Eye size={18} style={{ color: "var(--text-muted)" }} />}
+              </button>
+            </div>
 
-          <button
-            onClick={handleAuth}
-            className="w-full h-14 rounded-xl glossy-glass text-white font-semibold text-base transition-all active:scale-[0.97] flex items-center justify-center gap-2"
-            style={{ background: "linear-gradient(135deg, #06B6D4, #0891B2)", fontFamily: "var(--font-brand)" }}
-          >
-            <LogIn size={18} /> Войти через Telegram
-          </button>
+            <button type="submit" disabled={isSubmitting}
+              className="w-full h-12 rounded-xl glossy-glass text-white font-semibold text-sm transition-all active:scale-[0.97] disabled:opacity-60 flex items-center justify-center gap-2 mt-2"
+              style={{ background: "linear-gradient(135deg, #06B6D4, #0891B2)", fontFamily: "var(--font-brand)" }}>
+              {isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><LogIn size={16} /> {mode === "login" ? "Войти" : "Зарегистрироваться"}</>}
+            </button>
+          </form>
         </div>
-
-        <p className="text-xs text-center mt-6 leading-relaxed" style={{ color: "var(--text-muted)" }}>
-          Авторизация через Telegram ID.<br />
-          Невозможно зайти в чужой аккаунт.
-        </p>
       </div>
     </div>
   );

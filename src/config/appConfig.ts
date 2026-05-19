@@ -76,9 +76,10 @@ export const BONUS_EARN_RATE = 0.05; // 5%
 
 // ─── SUBSCRIPTIONS ────────────────────────────────────────
 export const SUBSCRIPTIONS = [
-  { hours: 10,  price: 13000, savings: 10, label: "Старт" },
-  { hours: 20,  price: 24000, savings: 15, label: "Про" },
-  { hours: 50,  price: 55000, savings: 20, label: "VIP" },
+  { hours: 10,  price: 8000, savings: 20, label: "Старт" },
+  { hours: 15,  price: 10000, savings: 25, label: "Про" },
+  { hours: 20,  price: 13500, savings: 30, label: "VIP" },
+  { hours: 30,  price: 18000, savings: 35, label: "Мастер" },
 ];
 
 // ─── PROMOTIONS ───────────────────────────────────────────
