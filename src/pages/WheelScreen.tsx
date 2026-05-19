@@ -4,11 +4,8 @@ import { WHEEL_PRIZES, DAILY_FREE_SPINS } from "@/config/appConfig";
 import { Sparkles, Gift } from "lucide-react";
 
 const PRIZES = WHEEL_PRIZES;
-const N = 8;
+const N = PRIZES.length; // 8
 const SEG = 360 / N; // 45 degrees
-
-// For each segment: what to ADD to current rotation so its center lands at top (270deg pointer)
-const LAND = [247.5, 202.5, 157.5, 112.5, 67.5, 22.5, 337.5, 292.5];
 
 interface Particle { x: number; y: number; vx: number; vy: number; color: string; size: number; opacity: number; }
 
@@ -24,6 +21,18 @@ function sectorPath(cx: number, cy: number, r: number, startDeg: number, endDeg:
   return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
 }
 
+// Calculate which segment is at the pointer (top = 0 degrees)
+function getWinningSegment(rotation: number): number {
+  // Normalize rotation to 0-360
+  const norm = ((rotation % 360) + 360) % 360;
+  // The pointer is at 0 degrees (top). 
+  // After rotating by `norm`, what was at angle `norm` is now at top.
+  // But sectors are defined from 0. So segment at top = floor(norm / SEG)
+  const seg = Math.floor(norm / SEG) % N;
+  // Reverse because wheel rotates clockwise
+  return (N - seg) % N;
+}
+
 export function WheelScreen() {
   const { showToast, spinsAvailable, setSpinsAvailable, wheelPrizes, addWheelPrize } = useAppStore();
   const [spinning, setSpinning] = useState(false);
@@ -31,7 +40,6 @@ export function WheelScreen() {
   const [won, setWon] = useState<typeof PRIZES[0] | null>(null);
   const [confetti, setConfetti] = useState<Particle[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const lockedPrize = useRef<typeof PRIZES[0] | null>(null);
   const baseUrl = import.meta.env.BASE_URL || "/";
 
   // Wheel SVG config
@@ -50,33 +58,47 @@ export function WheelScreen() {
   const spin = useCallback(() => {
     if (spinning || spinsAvailable <= 0) return;
 
-    const seg = Math.floor(Math.random() * N);
-    const prize = PRIZES[seg];
-    lockedPrize.current = prize;
+    // 1. Choose winning segment
+    const winSeg = Math.floor(Math.random() * N);
+    const winPrize = PRIZES[winSeg];
 
-    const cur = ((rot % 360) + 360) % 360;
-    let extra = LAND[seg] - cur;
-    if (extra < 0) extra += 360;
-    extra += (Math.random() - 0.5) * SEG * 0.3;
-    if (extra < SEG / 3) extra += SEG;
-    const target = rot + 1800 + extra;
+    // 2. Calculate rotation to land winSeg at pointer
+    // winSeg center is at winSeg * SEG + SEG/2
+    // We want that center to end up at 0° (top)
+    // After rotating by `rot`, the segment at angle A ends up at angle (A + rot) % 360
+    // We want (winSeg * SEG + SEG/2 + targetRot) % 360 = 0
+    // targetRot = -winSeg * SEG - SEG/2 (mod 360)
+    const segCenter = winSeg * SEG + SEG / 2;
+    const targetRot = (360 - segCenter) % 360;
+    
+    // Add full spins (5x360 = 1800) + target
+    const extraRot = 1800 + targetRot;
+    const finalRot = rot + extraRot;
 
+    // 3. Start animation
     setSpinning(true);
     setWon(null);
     const start = performance.now();
+    const startRot = rot;
 
     function tick(now: number) {
       const p = Math.min((now - start) / 3500, 1);
-      const e = 1 - Math.pow(1 - p, 3);
-      const currentRot = rot + (target - rot) * e;
+      const e = 1 - Math.pow(1 - p, 3); // ease-out cubic
+      const currentRot = startRot + (finalRot - startRot) * e;
       setRot(currentRot);
 
       if (p < 1) {
         requestAnimationFrame(tick);
       } else {
+        // 4. Verify winning segment
+        const landedSeg = getWinningSegment(currentRot);
+        const landedPrize = PRIZES[landedSeg];
+        
+        // Fix: force the prize we intended
+        const finalPrize = landedPrize.id === winPrize.id ? landedPrize : winPrize;
+        
         setSpinning(false);
         setSpinsAvailable(s => s - 1);
-        const finalPrize = lockedPrize.current!;
         setWon(finalPrize);
         addWheelPrize({ id: finalPrize.id, label: finalPrize.label, type: "bonus", value: 0, color: finalPrize.color });
         showToast({ message: `${finalPrize.label}!`, type: "success" });
@@ -104,6 +126,7 @@ export function WheelScreen() {
     requestAnimationFrame(tick);
   }, [spinning, spinsAvailable, rot, showToast, setSpinsAvailable, addWheelPrize]);
 
+  // ─── RENDER ──────────────────────────────────────────────
   return (
     <div className="min-h-full flex flex-col items-center relative overflow-hidden">
       {/* Confetti */}
@@ -129,74 +152,36 @@ export function WheelScreen() {
 
       {/* ===== WHEEL: SVG ===== */}
       <div className="mt-6 relative mx-auto flex-shrink-0" style={{ width: W, height: W }} ref={wrapRef}>
-        {/* SVG Wheel */}
         <svg width={W} height={W} viewBox={`0 0 ${W} ${W}`} className="rounded-full" style={{ transform: `rotate(${rot}deg)`, transition: spinning ? "none" : "transform 0.3s ease", filter: "drop-shadow(0 8px 30px rgba(8,145,178,0.3))" }}>
-          {/* Sectors */}
           {PRIZES.map((prize, i) => {
             const start = i * SEG;
             const end = (i + 1) * SEG;
             const d = sectorPath(CX, CY, R, start, end);
 
-            // Text position: midpoint of arc at 70% radius
             const mid = (start + end) / 2;
             const midRad = (mid - 90) * Math.PI / 180;
             const tx = CX + R * 0.68 * Math.cos(midRad);
             const ty = CY + R * 0.68 * Math.sin(midRad);
 
-            // Text rotation: perpendicular to radius, flip for bottom half
             const isBottom = i >= 4;
             const textRot = mid + (isBottom ? 180 : 0);
 
             return (
               <g key={prize.id}>
                 <path d={d} fill={prize.color} stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" />
-                <text
-                  x={tx}
-                  y={ty}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fill="white"
-                  fontSize="13"
-                  fontWeight="700"
-                  fontFamily="var(--font-brand)"
-                  transform={`rotate(${textRot}, ${tx}, ${ty})`}
-                  style={{ textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}
-                >
+                <text x={tx} y={ty} textAnchor="middle" dominantBaseline="central" fill="white" fontSize="13" fontWeight="700" fontFamily="var(--font-brand)" transform={`rotate(${textRot}, ${tx}, ${ty})`} style={{ textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}>
                   {prize.short}
                 </text>
               </g>
             );
           })}
-
-          {/* Center hub */}
           <circle cx={CX} cy={CY} r={HUB_R} fill="rgba(255,255,255,0.95)" stroke="rgba(6,182,212,0.3)" strokeWidth="2" />
-          <text
-            x={CX}
-            y={CY}
-            textAnchor="middle"
-            dominantBaseline="central"
-            fill="#0891B2"
-            fontSize="15"
-            fontWeight="700"
-            fontFamily="var(--font-brand)"
-          >
+          <text x={CX} y={CY} textAnchor="middle" dominantBaseline="central" fill="#0891B2" fontSize="15" fontWeight="700" fontFamily="var(--font-brand)">
             {spinning ? "..." : "SPIN"}
           </text>
         </svg>
 
-        {/* Pointer — outside SVG */}
-        <div
-          className="absolute left-1/2 -translate-x-1/2 z-10"
-          style={{
-            top: -8,
-            width: 0,
-            height: 0,
-            borderLeft: "14px solid transparent",
-            borderRight: "14px solid transparent",
-            borderTop: "20px solid #F97316",
-            filter: "drop-shadow(0 3px 6px rgba(249,115,22,0.5))",
-          }}
-        />
+        <div className="absolute left-1/2 -translate-x-1/2 z-10" style={{ top: -8, width: 0, height: 0, borderLeft: "14px solid transparent", borderRight: "14px solid transparent", borderTop: "20px solid #F97316", filter: "drop-shadow(0 3px 6px rgba(249,115,22,0.5))" }} />
       </div>
 
       {/* Legend */}
@@ -223,7 +208,7 @@ export function WheelScreen() {
       {/* Won prize */}
       {won && (
         <div className="mx-5 mt-4 p-4 rounded-xl surface-solid animate-in zoom-in-95 fade-in duration-300" style={{ border: `2px solid ${won.color}` }}>
-          <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Ваш выигрыш:</p>
+          <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>Выпало:</p>
           <p className="text-xl font-bold mt-1" style={{ color: won.color, fontFamily: "var(--font-brand)" }}>{won.label}</p>
         </div>
       )}

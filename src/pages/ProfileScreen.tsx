@@ -3,39 +3,13 @@ import { useNavigate } from "react-router";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Settings, HelpCircle, MapPin, LogOut, ChevronRight,
-  Sparkles, Calendar, Wallet, Users, Share2, RefreshCw, Bell, Shield, X, QrCode, User
+  Sparkles, Calendar, Wallet, Users, Share2, RefreshCw, Bell, Shield, X, QrCode
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 
-const mockVisits = [
-  { id: 1, date: "14.05.2026", time: "10:00 - 12:00", duration: 2, boards: 1, instructor: true, rescuers: false, price: 2800, status: "completed" as const, earnedBonuses: 140 },
-  { id: 2, date: "10.05.2026", time: "14:00 - 16:00", duration: 2, boards: 2, instructor: false, rescuers: false, price: 3200, status: "completed" as const, earnedBonuses: 160 },
-  { id: 3, date: "02.05.2026", time: "11:00 - 13:00", duration: 2, boards: 1, instructor: true, rescuers: true, price: 5300, status: "completed" as const, earnedBonuses: 265 },
-];
-
-// Loyalty levels: [threshold, name, color, discount]
-const LEVELS: [number, string, string, number][] = [
-  [0,    "Бронзовый",  "#B45309", 0],
-  [2000, "Серебряный", "#94A3B8", 5],
-  [5000, "Золотой",    "#F59E0B", 10],
-  [10000,"Платиновый", "#0EA5E9", 15],
-];
-
-function getLoyaltyInfo(spent: number) {
-  let currentIdx = 0;
-  for (let i = 0; i < LEVELS.length; i++) {
-    if (spent >= LEVELS[i][0]) currentIdx = i;
-  }
-  const [, name, color, discount] = LEVELS[currentIdx];
-  const nextThreshold = currentIdx < LEVELS.length - 1 ? LEVELS[currentIdx + 1][0] : LEVELS[currentIdx][0] * 2;
-  const progress = Math.min(100, ((spent - LEVELS[currentIdx][0]) / (nextThreshold - LEVELS[currentIdx][0])) * 100);
-  const remaining = nextThreshold - spent;
-  return { name, color, discount, progress: Math.max(0, progress), remaining: Math.max(0, remaining), nextName: currentIdx < LEVELS.length - 1 ? LEVELS[currentIdx + 1][1] : "MAX" };
-}
-
 export function ProfileScreen() {
   const navigate = useNavigate();
-  const { showToast, notifications, unreadCount, markAllRead, userRole, user, logoutUser } = useAppStore();
+  const { showToast, notifications, unreadCount, markAllRead, user, logoutUser } = useAppStore();
   const [qrData, setQrData] = useState(`ow-check-${Date.now()}`);
   const [showNotifs, setShowNotifs] = useState(false);
   const baseUrl = import.meta.env.BASE_URL || "/";
@@ -52,39 +26,20 @@ export function ProfileScreen() {
     else { await navigator.clipboard.writeText(text); showToast({ message: "Ссылка скопирована!", type: "success" }); }
   };
 
-  // Yandex Maps
   const openYandex = () => {
-    try {
-      window.open("https://yandex.ru/maps/-/CPcLJZmt", "_blank", "noopener,noreferrer");
-    } catch {
-      showToast({ message: "Не удалось открыть Яндекс Карты", type: "error" });
-    }
+    try { window.open("https://yandex.ru/maps/-/CPcLJZmt", "_blank"); } catch {}
   };
-
-  const goToSettings = () => navigate("/settings");
-  const goToSupport = () => navigate("/support");
-  const goToAdmin = () => navigate("/admin");
 
   const handleLogout = () => {
     logoutUser();
-    showToast({ message: "Вы вышли из аккаунта", type: "info" });
-    navigate("/login");
+    showToast({ message: "Вы вышли", type: "info" });
+    window.location.reload();
   };
 
-  // My bookings with status
-  const myBookings = [
-    { id: "b1", date: "18.05.2026", time: "10:00", duration: 2, price: 2800, status: "pending" as const },
-    { id: "b2", date: "14.05.2026", time: "10:00 - 12:00", duration: 2, price: 2800, status: "confirmed" as const },
-    { id: "b3", date: "10.05.2026", time: "14:00 - 16:00", duration: 2, price: 3200, status: "completed" as const },
-  ];
-
   const userName = user?.name || "Гость";
-  const userPhone = user?.phone || "+7 (___) ___-__-__";
   const bonusBalance = user?.bonusBalance || 0;
   const visitsCount = user?.visitsCount || 0;
   const totalSpent = user?.totalSpent || 0;
-  const invitedCount = user?.invitedCount || 0;
-  const earnedFromReferrals = user?.earnedFromReferrals || 0;
   const initials = userName.split(" ").map((n) => n[0]).join("").toUpperCase() || "?";
 
   return (
@@ -96,8 +51,7 @@ export function ProfileScreen() {
           <h1 className="text-xl font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>Профиль</h1>
         </div>
         <div className="flex items-center gap-2">
-          {/* Settings button — NOW VISIBLE AT TOP */}
-          <button onClick={goToSettings} className="p-2 rounded-full active:scale-90 transition-transform" style={{ background: "rgba(6,182,212,0.08)" }}>
+          <button onClick={() => navigate("/settings")} className="p-2 rounded-full active:scale-90 transition-transform" style={{ background: "rgba(6,182,212,0.08)" }}>
             <Settings size={20} style={{ color: "var(--teal-600)" }} />
           </button>
           <button onClick={() => setShowNotifs(true)} className="relative p-2 active:scale-90 transition-transform">
@@ -150,13 +104,10 @@ export function ProfileScreen() {
         <div className="flex flex-col items-center">
           <div className="w-[72px] h-[72px] rounded-full flex items-center justify-center mb-3" style={{ background: "linear-gradient(135deg, #22D3EE, #60A5FA)", padding: "3px" }}>
             <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-              <span className="text-2xl font-bold" style={{ fontFamily: "var(--font-brand)", background: "linear-gradient(135deg, #06B6D4, #0891B2)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                {initials}
-              </span>
+              <span className="text-2xl font-bold" style={{ fontFamily: "var(--font-brand)", background: "linear-gradient(135deg, #06B6D4, #0891B2)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{initials}</span>
             </div>
           </div>
           <h2 className="text-xl font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>{userName}</h2>
-          <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>{userPhone}</p>
           <div className="flex gap-2 mt-4 w-full justify-center">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: "rgba(6,182,212,0.1)" }}>
               <Sparkles size={14} style={{ color: "var(--teal-600)" }} />
@@ -174,29 +125,6 @@ export function ProfileScreen() {
         </div>
       </div>
 
-      {/* Loyalty */}
-      {(() => {
-        const li = getLoyaltyInfo(totalSpent);
-        return (
-          <div className="mx-4 mt-3 rounded-2xl surface-solid p-4 animate-in fade-in slide-in-from-bottom-5 duration-500 delay-100">
-            <div className="flex justify-between items-center mb-2">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ background: li.color }} />
-                <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{li.name}</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: `${li.color}18`, color: li.color }}>скидка {li.discount}%</span>
-              </div>
-              <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>{totalSpent.toLocaleString()} ₽</span>
-            </div>
-            <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(6,182,212,0.1)" }}>
-              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${li.progress}%`, background: `linear-gradient(90deg, ${li.color}, #22D3EE)` }} />
-            </div>
-            <p className="text-xs mt-1.5" style={{ color: "var(--text-muted)" }}>
-              {li.remaining > 0 ? `До ${li.nextName}: ${li.remaining.toLocaleString()} ₽` : "Максимальный уровень!"}
-            </p>
-          </div>
-        );
-      })()}
-
       {/* QR Code */}
       <div className="mx-4 mt-3 rounded-2xl liquid-glass p-5 flex flex-col items-center animate-in fade-in slide-in-from-bottom-5 duration-500 delay-200">
         <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>QR-код для входа</h3>
@@ -209,76 +137,26 @@ export function ProfileScreen() {
         </button>
       </div>
 
-      {/* My Bookings */}
-      <div className="mx-4 mt-3 rounded-2xl surface-solid p-4 animate-in fade-in slide-in-from-bottom-5 duration-500 delay-300">
-        <h3 className="text-lg font-bold mb-3" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>Мои бронирования</h3>
-        {myBookings.map((b, i) => (
-          <div key={b.id} className={`py-3 ${i < myBookings.length - 1 ? "border-b" : ""}`} style={{ borderColor: "var(--border)" }}>
-            <div className="flex justify-between items-start">
-              <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{b.date}</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                style={{
-                  background: b.status === "completed" ? "rgba(16,185,129,0.1)" : b.status === "confirmed" ? "rgba(6,182,212,0.1)" : "rgba(249,115,22,0.1)",
-                  color: b.status === "completed" ? "#059669" : b.status === "confirmed" ? "var(--teal-600)" : "#F97316",
-                }}>
-                {b.status === "completed" ? "Выполнено" : b.status === "confirmed" ? "Подтверждена" : "Ожидает подтверждения"}
-              </span>
-            </div>
-            <div className="flex justify-between items-center mt-1">
-              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{b.time} · {b.duration} часа</span>
-              <span className="text-sm font-bold" style={{ color: "var(--teal-600)" }}>{b.price.toLocaleString()} ₽</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Visit History */}
-      <div className="mx-4 mt-3 rounded-2xl surface-solid p-4 animate-in fade-in slide-in-from-bottom-5 duration-500 delay-300">
-        <h3 className="text-lg font-bold mb-3" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>История посещений</h3>
-        {mockVisits.map((visit, i) => (
-          <div key={visit.id} className={`py-3 ${i < mockVisits.length - 1 ? "border-b" : ""}`} style={{ borderColor: "var(--border)" }}>
-            <div className="flex justify-between items-start">
-              <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{visit.date}</span>
-              <span className="text-sm font-bold" style={{ color: "var(--teal-600)" }}>{visit.price.toLocaleString()} ₽</span>
-            </div>
-            <div className="flex justify-between items-center mt-1">
-              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{visit.time} · {visit.duration} часа</span>
-              <span className="text-xs font-semibold" style={{ color: "#10B981" }}>+{visit.earnedBonuses}</span>
-            </div>
-            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Доски: {visit.boards} | Инструктор: {visit.instructor ? "Да" : "Нет"} | Спасатели: {visit.rescuers ? "Да" : "Нет"}</p>
-          </div>
-        ))}
-      </div>
-
       {/* Referral */}
-      <div className="mx-4 mt-3 rounded-2xl liquid-glass p-4 animate-in fade-in slide-in-from-bottom-5 duration-500 delay-400">
+      <div className="mx-4 mt-3 rounded-2xl liquid-glass p-4 animate-in fade-in slide-in-from-bottom-5 duration-500 delay-300">
         <h3 className="text-lg font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>Пригласите друга</h3>
         <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>+300 бонусов за каждого друга</p>
-        <button onClick={shareReferral}
-          className="w-full mt-3 h-12 rounded-xl glossy-glass flex items-center justify-center gap-2 text-white font-semibold transition-transform active:scale-95"
+        <button onClick={shareReferral} className="w-full mt-3 h-12 rounded-xl glossy-glass flex items-center justify-center gap-2 text-white font-semibold transition-transform active:scale-95"
           style={{ background: "linear-gradient(135deg, #06B6D4, #0891B2)", fontFamily: "var(--font-brand)" }}>
           <Share2 size={18} /> Поделиться ссылкой
         </button>
-        <div className="flex gap-4 mt-3">
-          <div className="flex items-center gap-1.5"><Users size={14} style={{ color: "var(--text-muted)" }} /><span className="text-xs" style={{ color: "var(--text-muted)" }}>Приглашено: {invitedCount}</span></div>
-          <div className="flex items-center gap-1.5"><Sparkles size={14} style={{ color: "var(--text-muted)" }} /><span className="text-xs" style={{ color: "var(--text-muted)" }}>Заработано: {earnedFromReferrals}</span></div>
-        </div>
       </div>
 
-      {/* Action Buttons — Settings removed from here (moved to header) */}
-      <div className="mx-4 mt-3 mb-6 space-y-2 animate-in fade-in slide-in-from-bottom-5 duration-500 delay-500">
+      {/* Action Buttons */}
+      <div className="mx-4 mt-3 mb-6 space-y-2 animate-in fade-in slide-in-from-bottom-5 duration-500 delay-400">
         {[
-          { icon: HelpCircle, label: "Поддержка", action: goToSupport },
+          { icon: HelpCircle, label: "Поддержка", action: () => navigate("/support") },
           { icon: MapPin, label: "Отзыв на Яндекс Картах", action: openYandex },
-          // Employee → QR Scanner only
-          ...(userRole === "employee" ? [{ icon: QrCode, label: "QR Сканер", action: goToAdmin }] : []),
-          // Admin → full admin panel
-          ...(userRole === "admin" ? [{ icon: Shield, label: "Админ-панель", action: goToAdmin }] : []),
+          { icon: Shield, label: "Админ-панель", action: () => navigate("/admin") },
         ].map((item, i) => (
-          <button key={i} onClick={item.action}
-            className="w-full flex items-center justify-between p-4 rounded-xl surface-solid transition-all active:scale-[0.98]">
+          <button key={i} onClick={item.action} className="w-full flex items-center justify-between p-4 rounded-xl surface-solid transition-all active:scale-[0.98]">
             <div className="flex items-center gap-3">
-              <item.icon size={20} style={{ color: item.label.includes("Админ") || item.label.includes("Сканер") ? "var(--teal-600)" : "var(--text-secondary)" }} />
+              <item.icon size={20} style={{ color: "var(--text-secondary)" }} />
               <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{item.label}</span>
             </div>
             <ChevronRight size={18} style={{ color: "var(--text-muted)" }} />

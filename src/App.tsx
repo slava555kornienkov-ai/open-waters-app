@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation, Navigate } from "react-router";
+import { Routes, Route, useLocation } from "react-router";
 import { useEffect } from "react";
 import { AppLayout } from "./components/AppLayout";
 import { ProfileScreen } from "./pages/ProfileScreen";
@@ -10,7 +10,6 @@ import { BookingConfirmScreen } from "./pages/BookingConfirmScreen";
 import { SettingsScreen } from "./pages/SettingsScreen";
 import { AdminScreen } from "./pages/AdminScreen";
 import { SubscriptionConfirmScreen } from "./pages/SubscriptionConfirmScreen";
-import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
 function useTelegramBackButton() {
@@ -39,7 +38,6 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
       <Route element={<AppLayout />}>
         <Route path="/" element={<BookingScreen />} />
         <Route path="/profile" element={<ProfileScreen />} />
