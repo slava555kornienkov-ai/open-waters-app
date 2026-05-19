@@ -54,6 +54,14 @@ export const bookings = mysqlTable("bookings", {
   earnedBonuses: int("earnedBonuses").default(0).notNull(),
   status: mysqlEnum("status", ["pending", "confirmed", "completed", "cancelled"]).default("pending").notNull(),
   paymentStatus: mysqlEnum("paymentStatus", ["pending", "qr", "card", "confirmed", "declined"]).default("pending").notNull(),
+  // Notification tracking
+  telegramChatId: bigint("telegramChatId", { mode: "number" }),
+  reminder24hSent: boolean("reminder24hSent").default(false).notNull(),
+  reminder1hSent: boolean("reminder1hSent").default(false).notNull(),
+  reviewSent: boolean("reviewSent").default(false).notNull(),
+  // Employee confirmation
+  confirmedBy: bigint("confirmedBy", { mode: "number", unsigned: true }),
+  confirmedAt: timestamp("confirmedAt"),
   qrCode: varchar("qrCode", { length: 255 }),
   isWeekend: boolean("isWeekend").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

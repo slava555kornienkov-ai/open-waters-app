@@ -3,15 +3,58 @@ import { CheckCircle, Copy } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { QRCodeSVG } from "qrcode.react";
 import { useState } from "react";
+import { trpc } from "@/providers/trpc";
 
 export function BookingConfirmScreen() {
   const navigate = useNavigate();
-  const { bookingForm, showToast } = useAppStore();
+  const { bookingForm, showToast, user } = useAppStore();
   const [copied, setCopied] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const createBooking = trpc.booking.create.useMutation({
+    onSuccess: () => {
+      showToast({ message: "Бронирование создано! Напомним за 24ч и за 1ч", type: "success" });
+      setTimeout(() => navigate("/booking"), 2000);
+    },
+    onError: (err) => {
+      setIsSubmitting(false);
+      showToast({ message: err.message || "Ошибка создания брони", type: "error" });
+    },
+  });
 
   const handlePayment = () => {
-    showToast({ message: "Оплата ожидает подтверждения", type: "success" });
-    setTimeout(() => navigate("/booking"), 1500);
+    setIsSubmitting(true);
+
+    // Get Telegram chat ID from WebApp
+    const tg = window.Telegram?.WebApp;
+    const telegramChatId = tg?.initDataUnsafe?.user?.id;
+
+    const weekend = [0, 6].includes(new Date(bookingForm.date).getDay());
+
+    // Calculate total
+    const prices = [0, 1700, 2800, 3800, 4700];
+    let base = prices[Math.min(bookingForm.duration, 4)] || 4700;
+    if (bookingForm.duration > 4) base += (bookingForm.duration - 4) * 600;
+    let total = base * bookingForm.boards;
+    if (bookingForm.instructor) total += 2000 * bookingForm.duration;
+    if (bookingForm.rescuers) total += 2500 * bookingForm.duration;
+    total -= bookingForm.bonusesUsed;
+
+    createBooking.mutate({
+      date: bookingForm.date,
+      time: bookingForm.time,
+      duration: bookingForm.duration,
+      boards: bookingForm.boards,
+      instructor: bookingForm.instructor,
+      rescuers: bookingForm.rescuers,
+      isWeekend: weekend,
+      totalPrice: Math.max(0, total),
+      usedBonuses: bookingForm.bonusesUsed,
+      paymentMethod: bookingForm.paymentMethod,
+      telegramChatId,
+      name: user?.name || tg?.initDataUnsafe?.user?.first_name || "Гость",
+      phone: user?.phone || "",
+    });
   };
 
   const copyCardNumber = () => {
@@ -37,17 +80,12 @@ export function BookingConfirmScreen() {
     <div className="min-h-full pb-4">
       {/* Header */}
       <div className="px-5 pt-4 pb-2 flex items-center gap-3">
-        <button
-          onClick={() => navigate("/booking")}
-          className="w-8 h-8 rounded-full surface-solid flex items-center justify-center active:scale-90 transition-transform"
-        >
+        <button onClick={() => navigate("/booking")} className="w-8 h-8 rounded-full surface-solid flex items-center justify-center active:scale-90 transition-transform">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-primary)" }}>
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
-        <h1 className="text-lg font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>
-          Подтверждение
-        </h1>
+        <h1 className="text-lg font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>Подтверждение</h1>
       </div>
 
       {/* Success Card */}
@@ -60,6 +98,9 @@ export function BookingConfirmScreen() {
         </h2>
         <p className="text-sm mt-2 text-center" style={{ color: "var(--text-secondary)" }}>
           {bookingForm.date}, {bookingForm.time} - {String(Number(bookingForm.time.split(":")[0]) + bookingForm.duration).padStart(2, "0")}:00
+        </p>
+        <p className="text-xs mt-2 text-center" style={{ color: "var(--text-muted)" }}>
+          Напомним за 24 часа и за 1 час до визита
         </p>
 
         {/* Details */}
@@ -83,34 +124,24 @@ export function BookingConfirmScreen() {
         </div>
       </div>
 
-      {/* Payment — QR or Card Transfer */}
+      {/* Payment */}
       <div className="mx-4 mt-4 rounded-2xl surface-solid p-5 flex flex-col items-center animate-in fade-in slide-in-from-bottom-5 duration-400" style={{ animationDelay: "300ms" }}>
         {bookingForm.paymentMethod === "card" ? (
           <>
-            <p className="text-sm font-medium mb-3 text-center" style={{ color: "var(--text-primary)" }}>
-              Перевод на карту
-            </p>
+            <p className="text-sm font-medium mb-3 text-center" style={{ color: "var(--text-primary)" }}>Перевод на карту</p>
             <div className="w-full p-4 rounded-xl text-center" style={{ background: "rgba(6,182,212,0.06)" }}>
-              <p className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-brand)" }}>
-                +7 (914)-139-31-20
-              </p>
+              <p className="text-lg font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-brand)" }}>+7 (914)-139-31-20</p>
               <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>ВТБ</p>
               <p className="text-sm mt-1 font-medium" style={{ color: "var(--text-primary)" }}>Евгения К.</p>
             </div>
-            <button
-              onClick={copyCardNumber}
-              className="flex items-center gap-2 mt-3 text-sm font-medium transition-opacity hover:opacity-70"
-              style={{ color: "var(--teal-500)" }}
-            >
+            <button onClick={copyCardNumber} className="flex items-center gap-2 mt-3 text-sm font-medium transition-opacity hover:opacity-70" style={{ color: "var(--teal-500)" }}>
               {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
               {copied ? "Скопировано!" : "Скопировать номер"}
             </button>
           </>
         ) : (
           <>
-            <p className="text-sm font-medium mb-3" style={{ color: "var(--text-primary)" }}>
-              Оплатите по QR-коду
-            </p>
+            <p className="text-sm font-medium mb-3" style={{ color: "var(--text-primary)" }}>Оплатите по QR-коду</p>
             <div className="bg-white p-3 rounded-xl shadow-sm">
               <QRCodeSVG value={`ow-payment-${Date.now()}`} size={140} level="M" />
             </div>
@@ -121,18 +152,12 @@ export function BookingConfirmScreen() {
 
       {/* Actions */}
       <div className="mx-4 mt-4 space-y-2">
-        <button
-          onClick={handlePayment}
-          className="w-full h-14 rounded-xl glossy-glass text-white font-semibold text-base transition-all active:scale-[0.97]"
-          style={{ background: "linear-gradient(135deg, #06B6D4, #0891B2)", fontFamily: "var(--font-brand)" }}
-        >
-          Я оплатил
+        <button onClick={handlePayment} disabled={isSubmitting}
+          className="w-full h-14 rounded-xl glossy-glass text-white font-semibold text-base transition-all active:scale-[0.97] disabled:opacity-60"
+          style={{ background: "linear-gradient(135deg, #06B6D4, #0891B2)", fontFamily: "var(--font-brand)" }}>
+          {isSubmitting ? "Создание брони..." : "Я оплатил"}
         </button>
-        <button
-          onClick={() => navigate("/booking")}
-          className="w-full h-12 rounded-xl text-sm font-medium transition-all active:scale-[0.97]"
-          style={{ color: "var(--text-secondary)" }}
-        >
+        <button onClick={() => navigate("/booking")} className="w-full h-12 rounded-xl text-sm font-medium transition-all active:scale-[0.97]" style={{ color: "var(--text-secondary)" }}>
           Изменить бронь
         </button>
       </div>

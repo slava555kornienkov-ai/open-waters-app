@@ -1,18 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAppStore } from "@/store/useAppStore";
+import { WHEEL_PRIZES, DAILY_FREE_SPINS } from "@/config/appConfig";
 import { Sparkles, Gift } from "lucide-react";
 
-const PRIZES = [
-  { id: "discount-5",  label: "Скидка 5%",      short: "-5%",  color: "#0EA5E9" },
-  { id: "bonus-200",   label: "200 бонусов",    short: "200",  color: "#EC4899" },
-  { id: "discount-10", label: "Скидка 10%",     short: "-10%", color: "#6366F1" },
-  { id: "bonus-50",    label: "50 бонусов",     short: "50",   color: "#F59E0B" },
-  { id: "free-hour",   label: "Бесплатный час", short: "+1ч",  color: "#10B981" },
-  { id: "bonus-100",   label: "100 бонусов",    short: "100",  color: "#EF4444" },
-  { id: "discount-15", label: "Скидка 15%",     short: "-15%", color: "#14B8A6" },
-  { id: "bonus-150",   label: "150 бонусов",    short: "150",  color: "#8B5CF6" },
-];
-
+const PRIZES = WHEEL_PRIZES;
 const N = 8;
 const SEG = 360 / N; // 45 degrees
 
@@ -21,6 +12,18 @@ const LAND = [247.5, 202.5, 157.5, 112.5, 67.5, 22.5, 337.5, 292.5];
 
 interface Particle { x: number; y: number; vx: number; vy: number; color: string; size: number; opacity: number; }
 
+// ─── SVG SECTOR PATH GENERATOR ────────────────────────────
+function sectorPath(cx: number, cy: number, r: number, startDeg: number, endDeg: number): string {
+  const s = (startDeg - 90) * Math.PI / 180;
+  const e = (endDeg - 90) * Math.PI / 180;
+  const x1 = cx + r * Math.cos(s);
+  const y1 = cy + r * Math.sin(s);
+  const x2 = cx + r * Math.cos(e);
+  const y2 = cy + r * Math.sin(e);
+  const largeArc = endDeg - startDeg > 180 ? 1 : 0;
+  return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+}
+
 export function WheelScreen() {
   const { showToast, spinsAvailable, setSpinsAvailable, wheelPrizes, addWheelPrize } = useAppStore();
   const [spinning, setSpinning] = useState(false);
@@ -28,10 +31,15 @@ export function WheelScreen() {
   const [won, setWon] = useState<typeof PRIZES[0] | null>(null);
   const [confetti, setConfetti] = useState<Particle[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
-  // FIXED: Use ref to lock the prize BEFORE animation starts
   const lockedPrize = useRef<typeof PRIZES[0] | null>(null);
-  const lockedSeg = useRef<number>(0);
   const baseUrl = import.meta.env.BASE_URL || "/";
+
+  // Wheel SVG config
+  const W = 260;
+  const CX = W / 2;
+  const CY = W / 2;
+  const R = 118;
+  const HUB_R = 38;
 
   useEffect(() => {
     if (confetti.length === 0) return;
@@ -42,21 +50,17 @@ export function WheelScreen() {
   const spin = useCallback(() => {
     if (spinning || spinsAvailable <= 0) return;
 
-    // 1. LOCK PRIZE — once picked, it never changes during animation
     const seg = Math.floor(Math.random() * N);
     const prize = PRIZES[seg];
     lockedPrize.current = prize;
-    lockedSeg.current = seg;
 
-    // 2. COMPUTE ROTATION based on locked segment
     const cur = ((rot % 360) + 360) % 360;
     let extra = LAND[seg] - cur;
     if (extra < 0) extra += 360;
-    extra += (Math.random() - 0.5) * SEG * 0.3; // Small random jitter (reduced for accuracy)
+    extra += (Math.random() - 0.5) * SEG * 0.3;
     if (extra < SEG / 3) extra += SEG;
     const target = rot + 1800 + extra;
 
-    // 3. START ANIMATION
     setSpinning(true);
     setWon(null);
     const start = performance.now();
@@ -70,7 +74,6 @@ export function WheelScreen() {
       if (p < 1) {
         requestAnimationFrame(tick);
       } else {
-        // 4. REVEAL — use the LOCKED prize (guaranteed match)
         setSpinning(false);
         setSpinsAvailable(s => s - 1);
         const finalPrize = lockedPrize.current!;
@@ -107,7 +110,7 @@ export function WheelScreen() {
       {confetti.length > 0 && (
         <div className="fixed inset-0 pointer-events-none z-50">
           {confetti.map((p, i) => (
-            <div key={i} className="absolute" style={{ left: p.x, top: p.y, width: p.size, height: p.size * 0.5, background: p.color, opacity: p.opacity }} />
+            <div key={i} className="absolute rounded-sm" style={{ left: p.x, top: p.y, width: p.size, height: p.size * 0.6, background: p.color, opacity: p.opacity, transform: `rotate(${Math.random() * 360}deg)` }} />
           ))}
         </div>
       )}
@@ -124,74 +127,76 @@ export function WheelScreen() {
         </div>
       </div>
 
-      {/* ===== WHEEL: 8 clip-path sectors ===== */}
-      <div className="mt-6 relative w-[260px] h-[260px] mx-auto flex-shrink-0" ref={wrapRef}>
+      {/* ===== WHEEL: SVG ===== */}
+      <div className="mt-6 relative mx-auto flex-shrink-0" style={{ width: W, height: W }} ref={wrapRef}>
+        {/* SVG Wheel */}
+        <svg width={W} height={W} viewBox={`0 0 ${W} ${W}`} className="rounded-full" style={{ transform: `rotate(${rot}deg)`, transition: spinning ? "none" : "transform 0.3s ease", filter: "drop-shadow(0 8px 30px rgba(8,145,178,0.3))" }}>
+          {/* Sectors */}
+          {PRIZES.map((prize, i) => {
+            const start = i * SEG;
+            const end = (i + 1) * SEG;
+            const d = sectorPath(CX, CY, R, start, end);
 
-        {/* Rotating layer */}
-        <div className="w-full h-full relative" style={{ transform: `rotate(${rot}deg)`, transition: spinning ? "none" : "transform 0.3s ease" }}>
+            // Text position: midpoint of arc at 70% radius
+            const mid = (start + end) / 2;
+            const midRad = (mid - 90) * Math.PI / 180;
+            const tx = CX + R * 0.68 * Math.cos(midRad);
+            const ty = CY + R * 0.68 * Math.sin(midRad);
 
-          {/* 8 colored sectors */}
-          {PRIZES.map((prize, i) => (
-            <div
-              key={prize.id}
-              className="absolute left-1/2 top-0 overflow-hidden"
-              style={{
-                width: "50%",
-                height: "100%",
-                transformOrigin: "left center",
-                transform: `rotate(${i * SEG}deg)`,
-                clipPath: "polygon(0 0, 100% 50%, 0 100%)",
-                background: prize.color,
-              }}
-            >
-              {/* Text inside sector */}
-              <span
-                className="absolute text-white text-[12px] font-bold whitespace-nowrap"
-                style={{
-                  fontFamily: "var(--font-brand)",
-                  textShadow: "0 1px 4px rgba(0,0,0,0.7)",
-                  left: "55%",
-                  top: "50%",
-                  transform: `translate(-50%, -50%) rotate(${i < 4 ? 22.5 : -157.5}deg)`,
-                }}
-              >
-                {prize.short}
-              </span>
-            </div>
-          ))}
+            // Text rotation: perpendicular to radius, flip for bottom half
+            const isBottom = i >= 4;
+            const textRot = mid + (isBottom ? 180 : 0);
 
-          {/* White divider lines overlaid */}
-          {Array.from({ length: N }, (_, i) => (
-            <div
-              key={`line-${i}`}
-              className="absolute left-1/2 top-0 w-[1.5px] origin-bottom"
-              style={{
-                height: "50%",
-                background: "rgba(255,255,255,0.35)",
-                transform: `translateX(-50%) rotate(${i * SEG}deg)`,
-              }}
-            />
-          ))}
+            return (
+              <g key={prize.id}>
+                <path d={d} fill={prize.color} stroke="rgba(255,255,255,0.25)" strokeWidth="1.5" />
+                <text
+                  x={tx}
+                  y={ty}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fill="white"
+                  fontSize="13"
+                  fontWeight="700"
+                  fontFamily="var(--font-brand)"
+                  transform={`rotate(${textRot}, ${tx}, ${ty})`}
+                  style={{ textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}
+                >
+                  {prize.short}
+                </text>
+              </g>
+            );
+          })}
 
           {/* Center hub */}
-          <div
-            className="absolute left-1/2 top-1/2 w-[70px] h-[70px] -translate-x-1/2 -translate-y-1/2 rounded-full flex items-center justify-center z-10"
-            style={{
-              background: "rgba(255,255,255,0.95)",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.15), inset 0 0 0 2px rgba(6,182,212,0.25)",
-            }}
+          <circle cx={CX} cy={CY} r={HUB_R} fill="rgba(255,255,255,0.95)" stroke="rgba(6,182,212,0.3)" strokeWidth="2" />
+          <text
+            x={CX}
+            y={CY}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fill="#0891B2"
+            fontSize="15"
+            fontWeight="700"
+            fontFamily="var(--font-brand)"
           >
-            <span className="text-[14px] font-bold" style={{ fontFamily: "var(--font-brand)", color: "#0891B2" }}>
-              {spinning ? "..." : "SPIN"}
-            </span>
-          </div>
-        </div>
+            {spinning ? "..." : "SPIN"}
+          </text>
+        </svg>
 
-        {/* Pointer (fixed, outside rotating layer) */}
-        <div className="absolute -top-[10px] left-1/2 -translate-x-1/2 z-20" style={{ width: 0, height: 0, borderLeft: "12px solid transparent", borderRight: "12px solid transparent", borderTop: "18px solid #F97316", filter: "drop-shadow(0 2px 4px rgba(249,115,22,0.4))" }} />
-
-        {/* Shadow */}
-        <div className="absolute inset-0 rounded-full pointer-events-none" style={{ boxShadow: "0 10px 40px rgba(8,145,178,0.25)", zIndex: -1 }} />
+        {/* Pointer — outside SVG */}
+        <div
+          className="absolute left-1/2 -translate-x-1/2 z-10"
+          style={{
+            top: -8,
+            width: 0,
+            height: 0,
+            borderLeft: "14px solid transparent",
+            borderRight: "14px solid transparent",
+            borderTop: "20px solid #F97316",
+            filter: "drop-shadow(0 3px 6px rgba(249,115,22,0.5))",
+          }}
+        />
       </div>
 
       {/* Legend */}

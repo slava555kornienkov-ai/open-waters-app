@@ -1,38 +1,19 @@
 import { useState } from "react";
 import { Clock, Gift } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import { PROMOTIONS as CONFIG_PROMOTIONS } from "@/config/appConfig";
 
 const baseUrl = import.meta.env.BASE_URL || "/";
 
-const PROMOTIONS = [
-  {
-    id: 1,
-    title: "Аренда SUP со скидкой 20%",
-    description: "При бронировании от 3 часов в будние дни",
-    badge: "До 30 июня",
-    discount: 20,
-    image: "/promo-spring.jpg",
-    active: true,
-  },
-  {
-    id: 2,
-    title: "Групповая аренда - скидка 15%",
-    description: "Для компаний от 4 человек на выходных",
-    badge: "До 15 июля",
-    discount: 15,
-    image: "/promo-group.jpg",
-    active: true,
-  },
-  {
-    id: 3,
-    title: "Первое посещение -30%",
-    description: "Специальное предложение для новых клиентов",
-    badge: "Постоянно",
-    discount: 30,
-    image: "/hero-sup.jpg",
-    active: true,
-  },
-];
+const PROMOTIONS = CONFIG_PROMOTIONS.filter(p => p.active).map(p => ({
+  id: p.id,
+  title: p.title,
+  description: p.description,
+  badge: `До ${p.validUntil.split("-").reverse().join(".")}`,
+  discount: p.discount,
+  image: `/${p.image}`,
+  active: p.active,
+}));
 
 export function PromotionsScreen() {
   const { showToast } = useAppStore();

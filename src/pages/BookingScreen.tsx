@@ -2,18 +2,15 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Minus, Plus, Check, QrCode, CreditCard, ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import { PRICING, SUBSCRIPTIONS } from "@/config/appConfig";
 
 const baseUrl = import.meta.env.BASE_URL || "/";
 
-const WEEKDAY_PRICES: Record<number, number> = { 1: 1700, 2: 2800, 3: 3800, 4: 4700 };
+const WEEKDAY_PRICES: Record<number, number> = {};
+for (const p of PRICING.basePrices) { WEEKDAY_PRICES[p.duration] = p.price; }
 const WEEKEND_PRICES: Record<number, number> = { 1: 2000, 2: 3200, 3: 4200, 4: 5000 };
-const EXTRA_HOUR_WEEKDAY = 600;
+const EXTRA_HOUR_WEEKDAY = PRICING.extraHourPrice;
 const EXTRA_HOUR_WEEKEND = 700;
-const SUBSCRIPTIONS = [
-  { hours: 10, price: 8000, savings: 20 },
-  { hours: 15, price: 10000, savings: 25 },
-  { hours: 20, price: 13500, savings: 30 },
-];
 
 const MONTHS = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
 const DAYS_SHORT = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
@@ -52,8 +49,8 @@ function calculateTotal(weekend: boolean, hours: number, boards: number, instruc
     basePrice += (hours - 4) * extraRate;
   }
   let total = basePrice * boards;
-  if (instructor) total += 2000 * hours;
-  if (rescuers) total += 2500 * hours;
+  if (instructor) total += PRICING.extras.instructor.pricePerHour * hours;
+  if (rescuers) total += PRICING.extras.rescuers.pricePerHour * hours;
   total -= bonusesUsed;
   return Math.max(0, total);
 }
