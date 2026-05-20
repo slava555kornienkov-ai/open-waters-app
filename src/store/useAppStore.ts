@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { findUserByPhone, createUser, updateUserSpins, addBonus, type DbUser } from "@/lib/supabase";
 
 type Tab = "profile" | "wheel" | "booking" | "promotions" | "support";
 type UserRole = "user" | "employee" | "admin";
@@ -36,6 +37,7 @@ interface UserData {
   referralCode: string;
   invitedCount: number;
   earnedFromReferrals: number;
+  role: UserRole;
 }
 
 interface AppState {
@@ -43,12 +45,12 @@ interface AppState {
   setActiveTab: (tab: Tab) => void;
   toast: Toast | null;
   showToast: (toast: Toast) => void;
-  hideToast: () => void;
   bookingForm: BookingForm;
   updateBookingForm: (partial: Partial<BookingForm>) => void;
   resetBookingForm: () => void;
   spinsAvailable: number;
   setSpinsAvailable: (n: number | ((prev: number) => number)) => void;
+  syncSpinsFromDb: () => Promise<void>;
   wheelPrizes: WheelPrize[];
   addWheelPrize: (prize: WheelPrize) => void;
   activeSubscription: { hours: number; totalHours: number } | null;
@@ -60,10 +62,9 @@ interface AppState {
   addNotification: (n: Omit<Notification, "id" | "timestamp">) => void;
   markAllRead: () => void;
   user: UserData | null;
-  setUser: (user: UserData | null) => void;
-  updateUser: (partial: Partial<UserData>) => void;
   isAuthenticated: boolean;
-  login: (userData: UserData) => void;
+  login: (phone: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (name: string, phone: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logoutUser: () => void;
   darkMode: boolean;
   setDarkMode: (v: boolean) => void;
@@ -75,30 +76,42 @@ const defaultBooking: BookingForm = {
   instructor: false, rescuers: false, bonusesUsed: 0, paymentMethod: "qr",
 };
 
-// Load user from localStorage
-function loadUser(): UserData | null {
-  try {
-    const raw = localStorage.getItem("ow_user");
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
+function dbUserToUser(dbUser: DbUser): UserData {
+  return {
+    name: dbUser.name,
+    phone: dbUser.phone,
+    bonusBalance: dbUser.bonus_balance || 0,
+    visitsCount: dbUser.visits_count || 0,
+    totalSpent: dbUser.total_spent || 0,
+    referralCode: dbUser.referral_code || "",
+    invitedCount: 0,
+    earnedFromReferrals: 0,
+    role: (dbUser.role as UserRole) || "user",
+  };
 }
 
-function saveUser(u: UserData | null) {
-  if (u) localStorage.setItem("ow_user", JSON.stringify(u));
-  else localStorage.removeItem("ow_user");
-}
-
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   activeTab: "booking",
   setActiveTab: (tab) => set({ activeTab: tab }),
   toast: null,
   showToast: (toast) => { set({ toast }); setTimeout(() => set({ toast: null }), 3000); },
-  hideToast: () => set({ toast: null }),
   bookingForm: { ...defaultBooking },
   updateBookingForm: (partial) => set((state) => ({ bookingForm: { ...state.bookingForm, ...partial } })),
   resetBookingForm: () => set({ bookingForm: { ...defaultBooking } }),
   spinsAvailable: 0,
-  setSpinsAvailable: (n) => set((state) => ({ spinsAvailable: typeof n === "function" ? n(state.spinsAvailable) : n })),
+  setSpinsAvailable: (n) => {
+    const val = typeof n === "function" ? n(get().spinsAvailable) : n;
+    set({ spinsAvailable: val });
+    // Sync to DB
+    const phone = get().user?.phone;
+    if (phone) updateUserSpins(phone, val);
+  },
+  syncSpinsFromDb: async () => {
+    const phone = get().user?.phone;
+    if (!phone) return;
+    const dbUser = await findUserByPhone(phone);
+    if (dbUser) set({ spinsAvailable: dbUser.spins_available || 0 });
+  },
   wheelPrizes: [],
   addWheelPrize: (prize) => set((state) => ({ wheelPrizes: [...state.wheelPrizes, prize] })),
   activeSubscription: null,
@@ -112,16 +125,60 @@ export const useAppStore = create<AppState>((set) => ({
     return { notifications: [newN, ...state.notifications], unreadCount: state.unreadCount + 1 };
   }),
   markAllRead: () => set((state) => ({ notifications: state.notifications.map(n => ({ ...n, read: true })), unreadCount: 0 })),
-  user: loadUser(),
-  isAuthenticated: !!loadUser(),
-  setUser: (user) => { saveUser(user); set({ user, isAuthenticated: !!user }); },
-  updateUser: (partial) => set((state) => {
-    const updated = state.user ? { ...state.user, ...partial } : null;
-    if (updated) saveUser(updated);
-    return { user: updated };
-  }),
-  login: (userData) => { saveUser(userData); set({ user: userData, isAuthenticated: true }); },
-  logoutUser: () => { saveUser(null); localStorage.removeItem("auth_token"); set({ user: null, isAuthenticated: false, notifications: [], unreadCount: 0, wheelPrizes: [], spinsAvailable: 0 }); },
+  user: null,
+  isAuthenticated: false,
+
+  login: async (phone: string, password: string) => {
+    const cleanPhone = phone.replace(/\D/g, "");
+    const dbUser = await findUserByPhone(cleanPhone);
+    if (!dbUser) return { success: false, error: "Аккаунт не найден" };
+    if (dbUser.password !== password) return { success: false, error: "Неверный пароль" };
+    const userData = dbUserToUser(dbUser);
+    set({
+      user: userData,
+      isAuthenticated: true,
+      userRole: userData.role,
+      spinsAvailable: dbUser.spins_available || 0,
+      notifications: [],
+      unreadCount: 0,
+      wheelPrizes: [],
+    });
+    return { success: true };
+  },
+
+  register: async (name: string, phone: string, password: string) => {
+    const cleanPhone = phone.replace(/\D/g, "");
+    // Check if exists
+    const existing = await findUserByPhone(cleanPhone);
+    if (existing) return { success: false, error: "Этот номер уже зарегистрирован" };
+    // Create
+    const dbUser = await createUser(name, phone, password);
+    if (!dbUser) return { success: false, error: "Ошибка создания аккаунта" };
+    const userData = dbUserToUser(dbUser);
+    set({
+      user: userData,
+      isAuthenticated: true,
+      userRole: "user",
+      spinsAvailable: 3,
+      notifications: [],
+      unreadCount: 0,
+      wheelPrizes: [],
+    });
+    return { success: true };
+  },
+
+  logoutUser: () => {
+    set({
+      user: null,
+      isAuthenticated: false,
+      userRole: "user",
+      notifications: [],
+      unreadCount: 0,
+      wheelPrizes: [],
+      spinsAvailable: 0,
+    });
+  },
+
   darkMode: localStorage.getItem("darkMode") === "true",
   setDarkMode: (v) => { localStorage.setItem("darkMode", String(v)); set({ darkMode: v }); },
 }));

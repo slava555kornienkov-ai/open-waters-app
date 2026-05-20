@@ -3,33 +3,18 @@ import { CheckCircle, Copy } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { QRCodeSVG } from "qrcode.react";
 import { useState } from "react";
-import { trpc } from "@/providers/trpc";
+import { createBooking, addBonus } from "@/lib/supabase";
 
 export function BookingConfirmScreen() {
   const navigate = useNavigate();
-  const { bookingForm, showToast, user } = useAppStore();
+  const { bookingForm, showToast, user, addNotification } = useAppStore();
   const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const createBooking = trpc.booking.create.useMutation({
-    onSuccess: () => {
-      showToast({ message: "Бронирование создано!", type: "success" });
-      setIsSubmitting(false);
-      setTimeout(() => navigate("/booking"), 1500);
-    },
-    onError: (err) => {
-      setIsSubmitting(false);
-      showToast({ message: "Ошибка: " + (err.message || "сервер недоступен"), type: "error" });
-    },
-  });
-
-  const handlePayment = () => {
+  const handlePayment = async () => {
     if (isSubmitting) return;
+    if (!user?.phone) { showToast({ message: "Ошибка: не авторизован", type: "error" }); return; }
     setIsSubmitting(true);
-
-    const tg = window.Telegram?.WebApp;
-    const telegramChatId = tg?.initDataUnsafe?.user?.id;
-    const weekend = [0, 6].includes(new Date(bookingForm.date).getDay());
 
     const prices = [0, 1700, 2800, 3800, 4700];
     let base = prices[Math.min(bookingForm.duration, 4)] || 4700;
@@ -38,22 +23,33 @@ export function BookingConfirmScreen() {
     if (bookingForm.instructor) total += 2000 * bookingForm.duration;
     if (bookingForm.rescuers) total += 2500 * bookingForm.duration;
     total -= bookingForm.bonusesUsed;
+    const finalTotal = Math.max(0, total);
 
-    createBooking.mutate({
+    // Save to Supabase
+    const result = await createBooking({
+      user_phone: user.phone,
       date: bookingForm.date,
       time: bookingForm.time,
       duration: bookingForm.duration,
       boards: bookingForm.boards,
       instructor: bookingForm.instructor,
       rescuers: bookingForm.rescuers,
-      isWeekend: weekend,
-      totalPrice: Math.max(0, total),
-      usedBonuses: bookingForm.bonusesUsed,
-      paymentMethod: bookingForm.paymentMethod,
-      telegramChatId,
-      name: user?.name || tg?.initDataUnsafe?.user?.first_name || "Гость",
-      phone: user?.phone || "",
+      total_price: finalTotal,
+      status: "pending",
+      payment_method: bookingForm.paymentMethod,
     });
+
+    if (result) {
+      // Add bonus for booking
+      await addBonus(user.phone, Math.round(finalTotal * 0.05));
+      addNotification({ title: "Бронирование создано", message: `${bookingForm.date}, ${bookingForm.time} — ${bookingForm.duration} часа, ${finalTotal.toLocaleString()} ₽`, read: false });
+      showToast({ message: "Бронирование создано в БД!", type: "success" });
+    } else {
+      showToast({ message: "Ошибка сохранения в БД", type: "error" });
+    }
+
+    setIsSubmitting(false);
+    setTimeout(() => navigate("/booking"), 1500);
   };
 
   const copyCardNumber = () => {
@@ -84,14 +80,12 @@ export function BookingConfirmScreen() {
         <h1 className="text-lg font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>Подтверждение</h1>
       </div>
 
-      <div className="mx-4 mt-4 rounded-2xl liquid-glass p-6 flex flex-col items-center animate-in fade-in zoom-in-95 duration-400">
+      <div className="mx-4 mt-4 rounded-2xl liquid-glass p-6 flex flex-col items-center">
         <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #06B6D4, #10B981)" }}>
           <CheckCircle size={28} className="text-white" />
         </div>
         <h2 className="text-xl font-bold mt-4 text-center" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>Бронирование создано!</h2>
-        <p className="text-sm mt-2 text-center" style={{ color: "var(--text-secondary)" }}>
-          {bookingForm.date}, {bookingForm.time} - {String(Number(bookingForm.time.split(":")[0]) + bookingForm.duration).padStart(2, "0")}:00
-        </p>
+        <p className="text-sm mt-2 text-center" style={{ color: "var(--text-secondary)" }}>{bookingForm.date}, {bookingForm.time}</p>
 
         <div className="w-full mt-5 space-y-2">
           {[
@@ -101,10 +95,7 @@ export function BookingConfirmScreen() {
             { label: "Спасатели", value: bookingForm.rescuers ? "Да" : "Нет" },
             { label: "Бонусы", value: `-${bookingForm.bonusesUsed.toLocaleString()}` },
           ].map((row, i) => (
-            <div key={i} className="flex justify-between py-2">
-              <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{row.label}</span>
-              <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{row.value}</span>
-            </div>
+            <div key={i} className="flex justify-between py-2"><span className="text-sm" style={{ color: "var(--text-secondary)" }}>{row.label}</span><span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{row.value}</span></div>
           ))}
           <div className="flex justify-between pt-3 mt-2" style={{ borderTop: "1px solid var(--border)" }}>
             <span className="text-base font-bold" style={{ fontFamily: "var(--font-brand)" }}>Стоимость</span>
@@ -113,7 +104,6 @@ export function BookingConfirmScreen() {
         </div>
       </div>
 
-      {/* Payment */}
       <div className="mx-4 mt-4 rounded-2xl surface-solid p-5 flex flex-col items-center">
         {bookingForm.paymentMethod === "card" ? (
           <>
@@ -131,9 +121,7 @@ export function BookingConfirmScreen() {
         ) : (
           <>
             <p className="text-sm font-medium mb-3" style={{ color: "var(--text-primary)" }}>Оплатите по QR-коду</p>
-            <div className="bg-white p-3 rounded-xl shadow-sm">
-              <QRCodeSVG value={`ow-payment-${Date.now()}`} size={140} level="M" />
-            </div>
+            <div className="bg-white p-3 rounded-xl shadow-sm"><QRCodeSVG value={`ow-payment-${Date.now()}`} size={140} level="M" /></div>
             <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>Сканируйте в приложении банка</p>
           </>
         )}
@@ -143,11 +131,9 @@ export function BookingConfirmScreen() {
         <button onClick={handlePayment} disabled={isSubmitting}
           className="w-full h-14 rounded-xl text-white font-semibold text-base transition-all active:scale-[0.97] disabled:opacity-60"
           style={{ background: "linear-gradient(135deg,#06B6D4,#0891B2)", fontFamily: "var(--font-brand)" }}>
-          {isSubmitting ? "Создание..." : "Я оплатил"}
+          {isSubmitting ? "Сохранение в БД..." : "Я оплатил"}
         </button>
-        <button onClick={() => navigate("/booking")} className="w-full h-12 rounded-xl text-sm font-medium" style={{ color: "var(--text-secondary)" }}>
-          Изменить бронь
-        </button>
+        <button onClick={() => navigate("/booking")} className="w-full h-12 rounded-xl text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Изменить бронь</button>
       </div>
     </div>
   );

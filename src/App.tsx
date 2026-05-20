@@ -32,23 +32,15 @@ function useTelegramBackButton() {
   }, [location.pathname]);
 }
 
-// Auth guard — redirects to login if not authenticated
-function AuthGuard({ children }: { children: React.ReactNode }) {
-  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
-  const location = useLocation();
-  if (!isAuthenticated && location.pathname !== "/login") {
-    return <Navigate to="/login" replace />;
-  }
-  return <>{children}</>;
-}
-
 export default function App() {
   useTelegramBackButton();
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
-        <Route path="/" element={<BookingScreen />} />
+      <Route path="/" element={isAuthenticated ? <Navigate to="/booking" replace /> : <Login />} />
+      <Route path="/login" element={isAuthenticated ? <Navigate to="/booking" replace /> : <Login />} />
+      <Route element={isAuthenticated ? <AppLayout /> : <Navigate to="/" replace />}>
         <Route path="/profile" element={<ProfileScreen />} />
         <Route path="/wheel" element={<WheelScreen />} />
         <Route path="/booking" element={<BookingScreen />} />

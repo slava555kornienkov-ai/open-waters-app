@@ -5,38 +5,43 @@ import { useAppStore } from "@/store/useAppStore";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { showToast, login } = useAppStore();
+  const { showToast, login, register } = useAppStore();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const baseUrl = import.meta.env.BASE_URL || "/";
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!phone.trim() || !password.trim()) { showToast({ message: "Заполните все поля", type: "error" }); return; }
-    if (mode === "register" && !name.trim()) { showToast({ message: "Введите имя", type: "error" }); return; }
-    if (password.length < 4) { showToast({ message: "Пароль минимум 4 символа", type: "error" }); return; }
+    setError("");
+
+    if (!phone.trim() || !password.trim()) { setError("Заполните все поля"); return; }
+    if (mode === "register" && !name.trim()) { setError("Введите имя"); return; }
+    if (password.length < 4) { setError("Пароль минимум 4 символа"); return; }
+
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      const userName = mode === "register" ? name : ("Пользователь " + phone);
-      const referralCode = `OW-${Math.floor(Math.random() * 9000 + 1000)}`;
-      login({
-        name: userName,
-        phone: phone,
-        bonusBalance: mode === "register" ? 300 : 0,
-        visitsCount: 0,
-        totalSpent: 0,
-        referralCode,
-        invitedCount: 0,
-        earnedFromReferrals: 0,
+
+    let result;
+    if (mode === "register") {
+      result = await register(name, phone, password);
+    } else {
+      result = await login(phone, password);
+    }
+
+    setIsSubmitting(false);
+
+    if (result.success) {
+      showToast({
+        message: mode === "register" ? "Регистрация успешна! +300 бонусов + 3 спина" : "Добро пожаловать!",
+        type: "success",
       });
-      showToast({ message: mode === "register" ? "Регистрация успешна! +300 бонусов" : "Добро пожаловать!", type: "success" });
       navigate("/booking");
-    }, 800);
+    } else {
+      setError(result.error || "Ошибка");
+    }
   };
 
   const formatPhone = (value: string) => {
@@ -48,6 +53,8 @@ export default function Login() {
     if (digits.length >= 8) formatted += `-${digits.slice(8, 10)}`;
     return formatted;
   };
+
+  const baseUrl = import.meta.env.BASE_URL || "/";
 
   return (
     <div className="app-viewport flex flex-col items-center justify-center min-h-screen px-6 relative">
@@ -68,13 +75,19 @@ export default function Login() {
         <div className="rounded-2xl liquid-glass p-6">
           <div className="flex gap-1 p-1 rounded-xl surface-solid mb-6">
             {(["login","register"] as const).map((tab) => (
-              <button key={tab} onClick={() => setMode(tab)}
+              <button key={tab} onClick={() => { setMode(tab); setError(""); }}
                 className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all"
                 style={{ background: mode === tab ? "white" : "transparent", color: mode === tab ? "var(--teal-600)" : "var(--text-muted)", boxShadow: mode === tab ? "0 2px 8px rgba(0,0,0,0.06)" : "none" }}>
                 {tab === "login" ? "Вход" : "Регистрация"}
               </button>
             ))}
           </div>
+
+          {error && (
+            <div className="mb-4 p-3 rounded-xl text-sm text-center" style={{ background: "rgba(239,68,68,0.1)", color: "#EF4444" }}>
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-3">
             {mode === "register" && (
@@ -99,7 +112,7 @@ export default function Login() {
             </div>
 
             <button type="submit" disabled={isSubmitting}
-              className="w-full h-12 rounded-xl glossy-glass text-white font-semibold text-sm transition-all active:scale-[0.97] disabled:opacity-60 flex items-center justify-center gap-2 mt-2"
+              className="w-full h-12 rounded-xl text-white font-semibold text-sm transition-all active:scale-[0.97] disabled:opacity-60 flex items-center justify-center gap-2 mt-2"
               style={{ background: "linear-gradient(135deg, #06B6D4, #0891B2)", fontFamily: "var(--font-brand)" }}>
               {isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><LogIn size={16} /> {mode === "login" ? "Войти" : "Зарегистрироваться"}</>}
             </button>
